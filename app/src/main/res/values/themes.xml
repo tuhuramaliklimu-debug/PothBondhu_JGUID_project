@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.PothBondhu" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/navy_primary</item>
+        <item name="colorPrimaryVariant">@color/navy_dark</item>
+        <item name="colorOnPrimary">@color/beige_light</item>
+        <item name="colorSecondary">@color/beige_primary</item>
+        <item name="colorSecondaryVariant">@color/beige_dark</item>
+        <item name="colorOnSecondary">@color/navy_dark</item>
+        <item name="android:statusBarColor">@color/navy_dark</item>
+        <item name="android:windowBackground">@color/beige_light</item>
+    </style>
+
+
+</resources>

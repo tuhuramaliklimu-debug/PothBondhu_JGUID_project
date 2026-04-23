@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "196252701162",
+    "project_id": "pothbondhu",
+    "storage_bucket": "pothbondhu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:196252701162:android:dbd5e77e4d71218ee06293",
+        "android_client_info": {
+          "package_name": "com.jgd.pothbondhu.myapplication.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRr8AJ4O_P50E971GElH0sMR1nczM5SNk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:196252701162:android:746ca1543d6b896be06293",
+        "android_client_info": {
+          "package_name": "com.jgd.pothbondhu.myapplication.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRr8AJ4O_P50E971GElH0sMR1nczM5SNk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

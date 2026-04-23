@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navy Blue Colors -->
+    <color name="navy_dark">#1A2A4A</color>
+    <color name="navy_primary">#23345B</color>
+    <color name="navy_light">#2E3F6E</color>
+
+    <!-- Beige/Cream Colors -->
+    <color name="beige_dark">#D4C5A9</color>
+    <color name="beige_primary">#F5ECD7</color>
+    <color name="beige_light">#FFF8E7</color>
+
+    <!-- Accent Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="error_red">#E74C3C</color>
+    <color name="success_green">#27AE60</color>
+</resources>
