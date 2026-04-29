@@ -46,6 +46,7 @@ class AuthRepository {
                         "bloodGroup" to "",
                         "allergies" to "",
                         "medications" to "",
+                        "location" to "Sylhet, Bangladesh",
                         "createdAt" to System.currentTimeMillis()
                     )
 
@@ -174,7 +175,10 @@ class AuthRepository {
                         userName = document.getString("userName") ?: "",
                         userEmail = document.getString("userEmail") ?: "",
                         userPhone = document.getString("userPhone") ?: "",
-                        bloodGroup = document.getString("bloodGroup") ?: ""
+                        bloodGroup = document.getString("bloodGroup") ?: "",
+                        allergies = document.getString("allergies") ?: "",
+                        medications = document.getString("medications") ?: "",
+                        location = document.getString("location") ?: "Sylhet, Bangladesh"
                     )
                     callback(true, user)
                 } else {

@@ -2,14 +2,18 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_home"
-        android:icon="@android:drawable/ic_dialog_map"
+        android:icon="@drawable/ic_home"
         android:title="Home" />
     <item
-        android:id="@+id/nav_contacts"
-        android:icon="@android:drawable/ic_dialog_info"
-        android:title="Contacts" />
+        android:id="@+id/nav_nearby"
+        android:icon="@drawable/ic_nearby"
+        android:title="Nearby" />
     <item
-        android:id="@+id/nav_journey"
-        android:icon="@android:drawable/ic_dialog_alert"
-        android:title="Journey" />
+        android:id="@+id/nav_alerts"
+        android:icon="@drawable/ic_alerts"
+        android:title="Alerts" />
+    <item
+        android:id="@+id/nav_profile"
+        android:icon="@drawable/ic_profile"
+        android:title="Profile" />
 </menu>

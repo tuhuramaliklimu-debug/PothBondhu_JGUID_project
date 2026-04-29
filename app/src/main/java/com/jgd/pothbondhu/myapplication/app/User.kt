@@ -5,5 +5,8 @@ data class User(
     val userName: String = "",
     val userEmail: String = "",
     val userPhone: String = "",
-    val bloodGroup: String = ""
+    val bloodGroup: String = "",
+    val allergies: String = "",
+    val medications: String = "",
+    val location: String = "Sylhet, Bangladesh"
 )

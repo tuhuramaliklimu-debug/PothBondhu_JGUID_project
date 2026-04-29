@@ -1,3 +1,45 @@
 <resources>
     <string name="app_name">PothBondhu</string>
+    <string name="app_title">PothBondhu</string>
+    <string name="app_subtitle">A Friend on the Road</string>
+
+    <!-- Stats -->
+    <string name="emergency_saved">Emergency saved</string>
+    <string name="crash_on">● On</string>
+    <string name="crash_off">○ Off</string>
+    <string name="detection_active">Detection active</string>
+
+    <!-- Profile -->
+    <string name="default_name">Pothh Bondhu User</string>
+    <string name="default_location">Sylhet, Bangladesh</string>
+    <string name="blood_not_set">Blood Group: Not set</string>
+    <string name="allergies_none">Allergies: None</string>
+    <string name="edit_profile">Edit Profile</string>
+
+    <!-- Emergency Contacts -->
+    <string name="emergency_contacts_title">EMERGENCY CONTACTS</string>
+    <string name="contact_mom">Fatima Mia (Mom)</string>
+    <string name="contact_mom_phone">📞 +880 1712 345 678</string>
+    <string name="contact_dad">Karim Hassan (Dad)</string>
+    <string name="contact_dad_phone">📞 +880 1912 345 678</string>
+    <string name="contact_sister">Roni Sultana (Sister)</string>
+    <string name="contact_sister_phone">📞 +880 1512 345 678</string>
+    <string name="add_contact">+ Add Contact</string>
+
+    <!-- Emergency Features -->
+    <string name="emergency_features_title">EMERGENCY FEATURES</string>
+    <string name="sos_alert">SOS Alert</string>
+    <string name="sos_desc">Send instant alert</string>
+    <string name="crash_detection">Crash Detection</string>
+    <string name="crash_desc">Auto detection on</string>
+    <string name="find_help">Find Help</string>
+    <string name="find_help_desc">Hospital, police, fuel</string>
+    <string name="journey_timer">Journey Timer</string>
+    <string name="journey_desc">Arrival confirmation</string>
+    <string name="blood_bank">Blood Bank</string>
+    <string name="blood_bank_desc">Search &amp; donate</string>
+    <string name="book_ride">Book Ride</string>
+    <string name="ride_desc">Pathao &amp; Uber</string>
+
+    <string name="sos_button">SOS</string>
 </resources>
