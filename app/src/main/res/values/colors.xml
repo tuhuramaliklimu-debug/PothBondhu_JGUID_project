@@ -15,4 +15,7 @@
     <color name="black">#000000</color>
     <color name="error_red">#E74C3C</color>
     <color name="success_green">#27AE60</color>
+
+    <!-- Launcher Background -->
+    <color name="ic_launcher_background">#ECE6C6</color>
 </resources>

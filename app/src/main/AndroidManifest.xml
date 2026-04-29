@@ -2,6 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- For crash detection (sensors) -->
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+
+    <!-- For internet connectivity checks -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,10 +27,17 @@
         android:theme="@style/Theme.PothBondhu"
         tools:targetApi="31">
 
+        <!-- OpenStreetMap User Agent (Required for OSM) -->
+        <meta-data
+            android:name="org.osmdroid.USER_AGENT"
+            android:value="PothBondhu/1.0 (Android)" />
+
         <!-- Splash Screen Activity (Launcher) -->
         <activity
             android:name=".SplashScreenActivity"
-            android:exported="true">
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.PothBondhu">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -35,7 +56,7 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- Main Activity -->
+        <!-- Main Activity (Dashboard with Map) -->
         <activity
             android:name=".MainActivity"
             android:exported="false"

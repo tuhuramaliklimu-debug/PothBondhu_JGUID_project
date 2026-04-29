@@ -1,16 +1,17 @@
 package com.jgd.pothbondhu.myapplication.app
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
-
 
 class AuthRepository {
     private val firebaseAuth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
+    private val TAG = "AuthRepository"
 
     /**
      * Register a new user with email and password
-     * Returns: Result<String> - Success with userId or failure with error message
      */
     fun registerUser(
         email: String,
@@ -43,6 +44,8 @@ class AuthRepository {
                         "userEmail" to email,
                         "userPhone" to userPhone,
                         "bloodGroup" to "",
+                        "allergies" to "",
+                        "medications" to "",
                         "createdAt" to System.currentTimeMillis()
                     )
 
@@ -56,6 +59,7 @@ class AuthRepository {
                         }
                 } else {
                     val errorMessage = authTask.exception?.message ?: "Registration failed"
+                    Log.e(TAG, "Registration error: $errorMessage")
                     callback(false, errorMessage, null)
                 }
             }
@@ -63,7 +67,6 @@ class AuthRepository {
 
     /**
      * Login user with email and password
-     * Returns: Result<String> - Success with userId or failure with error message
      */
     fun loginUser(
         email: String,
@@ -83,6 +86,7 @@ class AuthRepository {
                     callback(true, "Login successful", userId)
                 } else {
                     val errorMessage = authTask.exception?.message ?: "Login failed"
+                    Log.e(TAG, "Login error: $errorMessage")
                     callback(false, errorMessage, null)
                 }
             }
@@ -106,6 +110,7 @@ class AuthRepository {
                     callback(true, "Password reset email sent to $email")
                 } else {
                     val errorMessage = resetTask.exception?.message ?: "Failed to send reset email"
+                    Log.e(TAG, "Reset password error: $errorMessage")
                     callback(false, errorMessage)
                 }
             }
@@ -123,6 +128,27 @@ class AuthRepository {
      */
     fun getCurrentUserId(): String? {
         return firebaseAuth.currentUser?.uid
+    }
+
+    /**
+     * Get current user as FirebaseUser
+     */
+    fun getCurrentUser(): FirebaseUser? {
+        return firebaseAuth.currentUser
+    }
+
+    /**
+     * Get current user's email
+     */
+    fun getUserEmail(): String? {
+        return firebaseAuth.currentUser?.email
+    }
+
+    /**
+     * Get current user's display name
+     */
+    fun getUserName(): String? {
+        return firebaseAuth.currentUser?.displayName
     }
 
     /**
@@ -155,8 +181,130 @@ class AuthRepository {
                     callback(false, null)
                 }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Get user profile error: ${exception.message}")
                 callback(false, null)
             }
     }
+
+    /**
+     * Save or update user profile in Firestore
+     */
+    fun saveUserProfile(
+        userId: String,
+        userData: Map<String, Any>,
+        callback: (success: Boolean, message: String) -> Unit
+    ) {
+        firestore.collection("users").document(userId)
+            .update(userData)
+            .addOnSuccessListener {
+                callback(true, "Profile updated successfully")
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Save profile error: ${exception.message}")
+                callback(false, "Failed to update profile: ${exception.message}")
+            }
+    }
+
+    /**
+     * Delete user account and all associated data
+     */
+    fun deleteUser(callback: (success: Boolean, message: String) -> Unit) {
+        val userId = getCurrentUserId() ?: ""
+
+        // Delete from Firestore first
+        firestore.collection("users").document(userId)
+            .delete()
+            .addOnSuccessListener {
+                // Then delete from Authentication
+                firebaseAuth.currentUser?.delete()
+                    ?.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            callback(true, "Account deleted successfully")
+                        } else {
+                            callback(false, task.exception?.message ?: "Failed to delete account")
+                        }
+                    }
+            }
+            .addOnFailureListener { exception ->
+                callback(false, "Failed to delete user data: ${exception.message}")
+            }
+    }
+
+    /**
+     * Update user's blood group
+     */
+    fun updateBloodGroup(bloodGroup: String, callback: (success: Boolean, message: String) -> Unit) {
+        val userId = getCurrentUserId() ?: ""
+        val updates = mapOf("bloodGroup" to bloodGroup)
+        saveUserProfile(userId, updates, callback)
+    }
+
+    /**
+     * Add an emergency contact
+     */
+    fun addEmergencyContact(
+        name: String,
+        phoneNumber: String,
+        callback: (success: Boolean, message: String) -> Unit
+    ) {
+        val userId = getCurrentUserId() ?: ""
+        val contactId = firestore.collection("users").document(userId)
+            .collection("emergencyContacts").document().id
+
+        val contact = hashMapOf(
+            "contactId" to contactId,
+            "name" to name,
+            "phoneNumber" to phoneNumber,
+            "createdAt" to System.currentTimeMillis()
+        )
+
+        firestore.collection("users").document(userId)
+            .collection("emergencyContacts").document(contactId)
+            .set(contact)
+            .addOnSuccessListener {
+                callback(true, "Emergency contact added")
+            }
+            .addOnFailureListener { exception ->
+                callback(false, "Failed to add contact: ${exception.message}")
+            }
+    }
+
+    /**
+     * Get all emergency contacts
+     */
+    fun getEmergencyContacts(
+        callback: (success: Boolean, contacts: List<EmergencyContact>) -> Unit
+    ) {
+        val userId = getCurrentUserId() ?: ""
+
+        firestore.collection("users").document(userId)
+            .collection("emergencyContacts")
+            .get()
+            .addOnSuccessListener { documents ->
+                val contacts = mutableListOf<EmergencyContact>()
+                for (document in documents) {
+                    val contact = EmergencyContact(
+                        contactId = document.getString("contactId") ?: "",
+                        name = document.getString("name") ?: "",
+                        phoneNumber = document.getString("phoneNumber") ?: ""
+                    )
+                    contacts.add(contact)
+                }
+                callback(true, contacts)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Get contacts error: ${exception.message}")
+                callback(false, emptyList())
+            }
+    }
 }
+
+/**
+ * Data class for Emergency Contact
+ */
+data class EmergencyContact(
+    val contactId: String = "",
+    val name: String = "",
+    val phoneNumber: String = ""
+)
