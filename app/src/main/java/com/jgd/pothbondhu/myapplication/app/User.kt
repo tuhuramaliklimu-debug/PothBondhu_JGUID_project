@@ -8,5 +8,6 @@ data class User(
     val bloodGroup: String = "",
     val allergies: String = "",
     val medications: String = "",
+    val conditions: String = "",
     val location: String = "Sylhet, Bangladesh"
 )
