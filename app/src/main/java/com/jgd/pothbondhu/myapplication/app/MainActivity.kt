@@ -1,9 +1,13 @@
 package com.jgd.pothbondhu.myapplication.app
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.CountDownTimer
+import android.telephony.SmsManager
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -17,17 +21,28 @@ import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.osmdroid.views.MapView
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var authRepository: AuthRepository
+    private lateinit var sosService: SOSService
+    private lateinit var osmHelper: OSMHelper
+    private lateinit var mapView: MapView
+
     private val LOCATION_PERMISSION_REQUEST = 1
+    private val SMS_PERMISSION_REQUEST = 2
+
+    private var sosCountDownTimer: CountDownTimer? = null
+    private var isSosActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         authRepository = AuthRepository()
+        sosService = SOSService(this)
 
         // Check if user is logged in
         if (!authRepository.isUserLoggedIn()) {
@@ -35,6 +50,15 @@ class MainActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        // Request SMS permission
+        requestSmsPermission()
+
+        // Initialize OSM Helper for location
+        mapView = findViewById(R.id.mapView)
+        osmHelper = OSMHelper(this, mapView)
+        osmHelper.setupMap()
+        osmHelper.enableMyLocation()
 
         // Initialize views
         val sosFab = findViewById<ExtendedFloatingActionButton>(R.id.sosFab)
@@ -69,21 +93,20 @@ class MainActivity : AppCompatActivity() {
             android.graphics.Color.parseColor("#4CAF50")
         else android.graphics.Color.parseColor("#F44336"))
 
-        // SOS Button
+
         sosFab.setOnClickListener {
-            sendSOS()
+            showSOSConfirmationDialog()
         }
 
-        // Add Contact Button
+
         addContactButton.setOnClickListener {
-            // Navigate to Profile to add contacts
             showProfileFragment()
             Toast.makeText(this, "Go to Profile tab to add emergency contacts", Toast.LENGTH_SHORT).show()
         }
 
         // Feature Card Click Listeners
         cardSos.setOnClickListener {
-            Toast.makeText(this, "🚨 SOS Alert Feature - Coming Soon!", Toast.LENGTH_SHORT).show()
+            showSOSConfirmationDialog()
         }
 
         cardCrash.setOnClickListener {
@@ -113,6 +136,191 @@ class MainActivity : AppCompatActivity() {
         showHomeContent()
     }
 
+    // ========== TEST FUNCTION FOR DEBUGGING ==========
+
+    private fun testSOSFunctionality() {
+        Log.d("SOS_TEST", "========== SOS TEST STARTED ==========")
+
+        // Test 1: Check Emergency Contacts
+        authRepository.getEmergencyContacts { success, contacts ->
+            if (success) {
+                Log.d("SOS_TEST", "✅ Test 1: Contacts found - ${contacts.size} contact(s)")
+                Toast.makeText(this, "Contacts: ${contacts.size} found", Toast.LENGTH_SHORT).show()
+
+                if (contacts.isEmpty()) {
+                    Log.e("SOS_TEST", "❌ Test 1 FAILED: No emergency contacts added!")
+                    Toast.makeText(this, "❌ No emergency contacts! Please add contacts in Profile.", Toast.LENGTH_LONG).show()
+                    return@getEmergencyContacts
+                } else {
+                    for (contact in contacts) {
+                        Log.d("SOS_TEST", "   - ${contact.name}: ${contact.phoneNumber}")
+                    }
+                }
+            } else {
+                Log.e("SOS_TEST", "❌ Test 1 FAILED: Could not fetch contacts")
+                Toast.makeText(this, "❌ Failed to fetch contacts", Toast.LENGTH_SHORT).show()
+                return@getEmergencyContacts
+            }
+
+            // Test 2: Check Location
+            val location = osmHelper.getLastKnownLocation()
+            if (location != null) {
+                Log.d("SOS_TEST", "✅ Test 2: Location found - Lat: ${location.latitude}, Lon: ${location.longitude}")
+                Toast.makeText(this, "Location: ${location.latitude}, ${location.longitude}", Toast.LENGTH_SHORT).show()
+            } else {
+                Log.e("SOS_TEST", "❌ Test 2 FAILED: Could not get location! Set mock location in emulator.")
+                Toast.makeText(this, "❌ No location! Set mock location in emulator (Extended Controls → Location)", Toast.LENGTH_LONG).show()
+                return@getEmergencyContacts
+            }
+
+            // Test 3: Check SMS Permission
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+                Log.d("SOS_TEST", "✅ Test 3: SMS permission granted")
+                Toast.makeText(this, "SMS permission: GRANTED", Toast.LENGTH_SHORT).show()
+            } else {
+                Log.e("SOS_TEST", "❌ Test 3 FAILED: SMS permission not granted")
+                Toast.makeText(this, "❌ SMS permission denied! Please grant permission.", Toast.LENGTH_LONG).show()
+                requestSmsPermission()
+                return@getEmergencyContacts
+            }
+
+            // Test 4: Try sending a test SMS to first contact
+            try {
+                val testMessage = "🧪 TEST SOS from PothBondhu App\n\nThis is a test message. Your app is working!"
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(contacts[0].phoneNumber, null, testMessage, null, null)
+                Log.d("SOS_TEST", "✅ Test 4: Test SMS sent to ${contacts[0].name} (${contacts[0].phoneNumber})")
+                Toast.makeText(this, "✅ Test SMS sent to ${contacts[0].name}!", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Log.e("SOS_TEST", "❌ Test 4 FAILED: ${e.message}")
+                Toast.makeText(this, "❌ SMS failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+
+            Log.d("SOS_TEST", "========== SOS TEST COMPLETED ==========")
+        }
+    }
+
+    // ========== ORIGINAL SOS FUNCTIONS ==========
+
+    private fun showSOSConfirmationDialog() {
+        // Check if there are emergency contacts
+        authRepository.getEmergencyContacts { success, contacts ->
+            if (!success || contacts.isEmpty()) {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("No Emergency Contacts")
+                    .setMessage("You haven't added any emergency contacts. Please add contacts in Profile first.")
+                    .setPositiveButton("Add Contacts") { _, _ ->
+                        showProfileFragment()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+                return@getEmergencyContacts
+            }
+
+            // Show confirmation dialog
+            MaterialAlertDialogBuilder(this)
+                .setTitle("🚨 SOS EMERGENCY 🚨")
+                .setMessage("This will send your live location to ${contacts.size} emergency contact(s).\n\nDo you want to proceed?")
+                .setPositiveButton("SEND SOS") { _, _ ->
+                    startSOSCountdown()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun startSOSCountdown() {
+        if (isSosActive) {
+            Toast.makeText(this, "SOS already active! Wait for timer to finish.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Create countdown dialog
+        val dialogView = layoutInflater.inflate(R.layout.dialog_sos_countdown, null)
+        val timerText = dialogView.findViewById<TextView>(R.id.timerText)
+        val cancelButton = dialogView.findViewById<Button>(R.id.cancelButton)
+        val sosMessage = dialogView.findViewById<TextView>(R.id.sosMessage)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialog.show()
+
+        // Start 5-second countdown
+        var timeLeft = 5
+        timerText.text = "Sending SOS in $timeLeft seconds..."
+
+        sosCountDownTimer = object : CountDownTimer(5000, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                timeLeft = (millisUntilFinished / 1000).toInt()
+                timerText.text = "Sending SOS in $timeLeft seconds..."
+
+                when (timeLeft) {
+                    5 -> sosMessage.text = "Get ready..."
+                    3 -> sosMessage.text = "Stay calm. Help is coming."
+                    1 -> sosMessage.text = "Sending SOS now..."
+                }
+            }
+
+            override fun onFinish() {
+                isSosActive = true
+                dialog.dismiss()
+                executeSOS()
+            }
+        }.start()
+
+        cancelButton.setOnClickListener {
+            sosCountDownTimer?.cancel()
+            dialog.dismiss()
+            Toast.makeText(this, "SOS cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun executeSOS() {
+        authRepository.getEmergencyContacts { success, contacts ->
+            if (!success || contacts.isEmpty()) {
+                isSosActive = false
+                Toast.makeText(this, "No emergency contacts found", Toast.LENGTH_SHORT).show()
+                return@getEmergencyContacts
+            }
+
+            // Show progress dialog
+            val progressDialog = AlertDialog.Builder(this)
+                .setTitle("Sending SOS...")
+                .setMessage("Sending alerts to ${contacts.size} contact(s)...\nPlease wait.")
+                .setCancelable(false)
+                .create()
+            progressDialog.show()
+
+            sosService.sendSOS(authRepository, contacts) { sendSuccess, message, emergencyId ->
+                progressDialog.dismiss()
+                isSosActive = false
+
+                if (sendSuccess) {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("✅ SOS Sent Successfully")
+                        .setMessage("Emergency alerts have been sent to ${contacts.size} contact(s).\n\nThey have received your live location with Google Maps link.")
+                        .setPositiveButton("OK") { _, _ -> }
+                        .setNeutralButton("Share Again") { _, _ ->
+                            startSOSCountdown()
+                        }
+                        .show()
+                } else {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("❌ SOS Failed")
+                        .setMessage("Failed to send SOS: $message\n\nPlease check your connection and try again.")
+                        .setPositiveButton("Try Again") { _, _ ->
+                            startSOSCountdown()
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+        }
+    }
+
     private fun showHomeContent() {
         val mainContent = findViewById<LinearLayout>(R.id.mainContent)
         val fragmentContainer = findViewById<androidx.fragment.app.FragmentContainerView>(R.id.fragmentContainer)
@@ -138,18 +346,13 @@ class MainActivity : AppCompatActivity() {
 
         authRepository.getEmergencyContacts { success, contacts ->
             if (success && contacts.isNotEmpty()) {
-                // Update contact count
                 findViewById<TextView>(R.id.contactCount).text = contacts.size.toString()
-
-                // Clear existing views
                 contactsContainer.removeAllViews()
 
-                // Add each contact dynamically
                 for (contact in contacts) {
                     val contactView = createContactView(contact)
                     contactsContainer.addView(contactView)
 
-                    // Add divider except for last
                     if (contacts.indexOf(contact) < contacts.size - 1) {
                         val divider = View(this)
                         divider.layoutParams = LinearLayout.LayoutParams(
@@ -162,7 +365,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } else {
-                // Show "No contacts" message
                 findViewById<TextView>(R.id.contactCount).text = "0"
                 contactsContainer.removeAllViews()
 
@@ -188,7 +390,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(8, 12, 8, 12)
         }
 
-        // Avatar with initials
         val avatar = TextView(this).apply {
             layoutParams = LinearLayout.LayoutParams(40, 40)
             text = contact.name.take(2).uppercase()
@@ -198,7 +399,6 @@ class MainActivity : AppCompatActivity() {
             setBackgroundResource(R.drawable.contact_avatar)
         }
 
-        // Text layout (name and phone)
         val textLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
@@ -227,7 +427,6 @@ class MainActivity : AppCompatActivity() {
         layout.addView(avatar)
         layout.addView(textLayout)
 
-        // Call button
         val callBtn = Button(this).apply {
             text = "Call"
             textSize = 11f
@@ -240,7 +439,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
             setOnClickListener {
                 Toast.makeText(this@MainActivity, "Calling ${contact.name}...", Toast.LENGTH_SHORT).show()
-                // You can add actual phone call intent here
             }
         }
 
@@ -277,21 +475,12 @@ class MainActivity : AppCompatActivity() {
         userLocation.text = "Dhaka, Bangladesh"
     }
 
-    private fun sendSOS() {
-        authRepository.getEmergencyContacts { success, contacts ->
-            if (success && contacts.isNotEmpty()) {
-                Toast.makeText(
-                    this,
-                    "🚨 SOS Sent to ${contacts.size} contacts!",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else {
-                Toast.makeText(
-                    this,
-                    "⚠️ No emergency contacts added. Please add contacts first.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+    private fun requestSmsPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.SEND_SMS),
+                SMS_PERMISSION_REQUEST)
         }
     }
 
@@ -319,19 +508,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            SMS_PERMISSION_REQUEST -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "SMS permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "SMS permission denied. SOS alerts may not work properly.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
-        // Refresh contacts when returning to home screen
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
         if (currentFragment == null || currentFragment !is ProfileFragment) {
             loadEmergencyContacts()
-
-            // Refresh contact count
             authRepository.getEmergencyContacts { success, contacts ->
                 if (success) {
                     findViewById<TextView>(R.id.contactCount).text = contacts.size.toString()
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        sosCountDownTimer?.cancel()
     }
 }

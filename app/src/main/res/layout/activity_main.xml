@@ -515,6 +515,13 @@
 
                 </GridLayout>
 
+                <!-- Hidden MapView for OSM Helper -->
+                <org.osmdroid.views.MapView
+                    android:id="@+id/mapView"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:visibility="gone" />
+
             </LinearLayout>
         </ScrollView>
     </LinearLayout>
