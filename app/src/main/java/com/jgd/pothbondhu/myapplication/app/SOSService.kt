@@ -3,7 +3,9 @@ package com.jgd.pothbondhu.myapplication.app
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
@@ -30,46 +32,35 @@ class SOSService(private val context: Context) {
         contacts: List<EmergencyContact>,
         onComplete: (success: Boolean, message: String, emergencyId: String?) -> Unit
     ) {
+        Log.d(TAG, "========== SOS SERVICE STARTED ==========")
+        Log.d(TAG, "Contacts to notify: ${contacts.size}")
+
         // Get current location
         getCurrentLocation { location ->
             if (location == null) {
+                Log.e(TAG, "❌ Failed to get current location")
                 onComplete(false, "Could not get current location", null)
                 return@getCurrentLocation
             }
 
+            Log.d(TAG, "✅ Location obtained: ${location.latitude}, ${location.longitude}")
+
             // Get address from coordinates
             getAddressFromLocation(location) { address ->
+                Log.d(TAG, "✅ Address obtained: $address")
 
                 // Get user's medical profile
                 authRepository.getMedicalProfileForSOS { bloodGroup, allergies, userName, userEmail ->
+                    Log.d(TAG, "✅ Medical profile: Blood=$bloodGroup, Allergies=$allergies, Name=$userName")
 
                     // Send SMS to all contacts
                     sendSmsToContacts(contacts, location, address, userName)
 
-                    // Create emergency log
-                    val emergencyLog = EmergencyLog(
-                        userId = authRepository.getCurrentUserId() ?: "",
-                        userName = userName,
-                        userEmail = userEmail,
-                        bloodGroup = bloodGroup,
-                        allergies = allergies,
-                        timestamp = System.currentTimeMillis(),
-                        locationLat = location.latitude,
-                        locationLon = location.longitude,
-                        locationAddress = address,
-                        contactsNotified = contacts,
-                        isActive = true
-                    )
+                    // Show notification
+                    showNotification("SOS Sent", "Emergency alert sent to ${contacts.size} contacts")
 
-                    // Log to Firestore
-                    authRepository.logEmergency(emergencyLog) { success, docId, message ->
-                        if (success) {
-                            showNotification("SOS Sent", "Emergency alert sent to ${contacts.size} contacts")
-                            onComplete(true, "SOS sent successfully to ${contacts.size} contacts", docId)
-                        } else {
-                            onComplete(false, message, null)
-                        }
-                    }
+                    // Complete without Firestore
+                    onComplete(true, "SOS sent successfully to ${contacts.size} contacts", null)
                 }
             }
         }
@@ -83,15 +74,23 @@ class SOSService(private val context: Context) {
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
+            Log.e(TAG, "Location permission not granted")
             callback(null)
             return
         }
 
         fusedLocationClient.lastLocation
             .addOnSuccessListener { location ->
-                callback(location)
+                if (location != null) {
+                    Log.d(TAG, "Location found: ${location.latitude}, ${location.longitude}")
+                    callback(location)
+                } else {
+                    Log.e(TAG, "Location is null")
+                    callback(null)
+                }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to get location: ${e.message}")
                 callback(null)
             }
     }
@@ -102,13 +101,17 @@ class SOSService(private val context: Context) {
             val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
             if (addresses != null && addresses.isNotEmpty()) {
                 val address = addresses[0]
-                val addressString = "${address.getAddressLine(0)}, ${address.locality}, ${address.countryName}"
-                callback(addressString)
+                val addressString = buildString {
+                    append(address.getAddressLine(0) ?: "")
+                    if (!address.locality.isNullOrEmpty()) append(", ${address.locality}")
+                    if (!address.countryName.isNullOrEmpty()) append(", ${address.countryName}")
+                }
+                callback(addressString.ifEmpty { "${location.latitude}, ${location.longitude}" })
             } else {
                 callback("${location.latitude}, ${location.longitude}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Geocoder error", e)
+            Log.e(TAG, "Geocoder error: ${e.message}")
             callback("${location.latitude}, ${location.longitude}")
         }
     }
@@ -138,9 +141,9 @@ class SOSService(private val context: Context) {
             try {
                 val smsManager = SmsManager.getDefault()
                 smsManager.sendTextMessage(contact.phoneNumber, null, message, null, null)
-                Log.d(TAG, "SMS sent to ${contact.name} (${contact.phoneNumber})")
+                Log.d(TAG, "✅ SMS sent to ${contact.name} (${contact.phoneNumber})")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send SMS to ${contact.name}", e)
+                Log.e(TAG, "❌ Failed to send SMS to ${contact.name}: ${e.message}")
             }
         }
     }
@@ -158,10 +161,17 @@ class SOSService(private val context: Context) {
             notificationManager.createNotificationChannel(channel)
         }
 
+        val notificationIntent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
             .setContentText(content)
+            .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()

@@ -2,8 +2,12 @@ package com.jgd.pothbondhu.myapplication.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.telephony.SmsManager
@@ -30,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sosService: SOSService
     private lateinit var osmHelper: OSMHelper
     private lateinit var mapView: MapView
+    private lateinit var crashDetectionServiceIntent: Intent
 
     private val LOCATION_PERMISSION_REQUEST = 1
     private val SMS_PERMISSION_REQUEST = 2
@@ -37,12 +42,28 @@ class MainActivity : AppCompatActivity() {
     private var sosCountDownTimer: CountDownTimer? = null
     private var isSosActive = false
 
+    // Broadcast receiver for crash detection alerts
+    private val crashReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                "CRASH_DETECTED" -> {
+                    val message = intent.getStringExtra("message") ?: "Crash detected!"
+                    showCrashAlertDialog(message)
+                }
+                "AUTO_SOS" -> {
+                    triggerAutoSOS()
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         authRepository = AuthRepository()
         sosService = SOSService(this)
+        crashDetectionServiceIntent = Intent(this, CrashDetectionService::class.java)
 
         // Check if user is logged in
         if (!authRepository.isUserLoggedIn()) {
@@ -87,17 +108,21 @@ class MainActivity : AppCompatActivity() {
 
         // Set Crash Detection status
         val isCrashDetectionOn = getSharedPreferences("app_prefs", MODE_PRIVATE)
-            .getBoolean("crash_detection", true)
+            .getBoolean("crash_detection_enabled", true)
         crashStatus.text = if (isCrashDetectionOn) "● On" else "○ Off"
         crashStatus.setTextColor(if (isCrashDetectionOn)
             android.graphics.Color.parseColor("#4CAF50")
         else android.graphics.Color.parseColor("#F44336"))
 
+        // Start crash detection service if enabled
+        if (isCrashDetectionOn) {
+            startCrashDetectionService()
+        }
 
+        // SOS Button
         sosFab.setOnClickListener {
             showSOSConfirmationDialog()
         }
-
 
         addContactButton.setOnClickListener {
             showProfileFragment()
@@ -110,7 +135,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         cardCrash.setOnClickListener {
-            Toast.makeText(this, "📱 Crash Detection Settings - Coming Soon!", Toast.LENGTH_SHORT).show()
+            // Navigate to crash detection settings in Profile
+            showProfileFragment()
+            Toast.makeText(this, "Go to Profile → Safety Settings to adjust crash detection", Toast.LENGTH_LONG).show()
         }
 
         cardFindHelp.setOnClickListener {
@@ -134,6 +161,57 @@ class MainActivity : AppCompatActivity() {
 
         // By default, show home content
         showHomeContent()
+
+        // Register broadcast receiver for crash detection
+        registerCrashReceiver()
+    }
+
+    private fun registerCrashReceiver() {
+        val filter = IntentFilter().apply {
+            addAction("CRASH_DETECTED")
+            addAction("AUTO_SOS")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(crashReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(crashReceiver, filter)
+        }
+    }
+
+    private fun startCrashDetectionService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(crashDetectionServiceIntent)
+        } else {
+            startService(crashDetectionServiceIntent)
+        }
+        Log.d("MainActivity", "Crash detection service started")
+    }
+
+    private fun stopCrashDetectionService() {
+        stopService(crashDetectionServiceIntent)
+        Log.d("MainActivity", "Crash detection service stopped")
+    }
+
+    private fun showCrashAlertDialog(message: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("⚠️ CRASH DETECTED")
+            .setMessage("$message\n\nSOS will be sent in 5 seconds unless you cancel.")
+            .setPositiveButton("Cancel SOS") { _, _ ->
+                // Cancel crash alert
+                val cancelIntent = Intent("CRASH_CANCELLED")
+                sendBroadcast(cancelIntent)
+                Toast.makeText(this, "SOS cancelled", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Send SOS Now") { _, _ ->
+                sendSOS()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun triggerAutoSOS() {
+        Log.d("MainActivity", "Auto SOS triggered by crash detection")
+        sendSOS()
     }
 
     // ========== TEST FUNCTION FOR DEBUGGING ==========
@@ -317,6 +395,24 @@ class MainActivity : AppCompatActivity() {
                         .setNegativeButton("Cancel", null)
                         .show()
                 }
+            }
+        }
+    }
+
+    private fun sendSOS() {
+        authRepository.getEmergencyContacts { success, contacts ->
+            if (success && contacts.isNotEmpty()) {
+                Toast.makeText(
+                    this,
+                    "🚨 SOS Sent to ${contacts.size} contacts!",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    this,
+                    "⚠️ No emergency contacts added. Please add contacts first.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -541,5 +637,10 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         sosCountDownTimer?.cancel()
+        try {
+            unregisterReceiver(crashReceiver)
+        } catch (e: Exception) {
+            // Receiver not registered
+        }
     }
 }

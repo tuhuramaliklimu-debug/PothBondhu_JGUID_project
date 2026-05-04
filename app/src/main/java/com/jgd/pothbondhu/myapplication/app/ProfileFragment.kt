@@ -1,7 +1,17 @@
 package com.jgd.pothbondhu.myapplication.app
 
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,6 +30,24 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 class ProfileFragment : Fragment() {
 
     private lateinit var authRepository: AuthRepository
+    private lateinit var sensorManager: SensorManager
+    private var accelerometer: Sensor? = null
+    private var isCrashDetectionRunning = false
+
+    // Broadcast receiver for crash detection alerts
+    private val crashReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                "CRASH_DETECTED" -> {
+                    val message = intent.getStringExtra("message") ?: "Crash detected!"
+                    showCrashAlertDialog(message)
+                }
+                "CRASH_CANCELLED" -> {
+                    Toast.makeText(context, "Crash alert cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     // UI Elements
     private lateinit var avatarInitials: TextView
@@ -57,11 +85,26 @@ class ProfileFragment : Fragment() {
 
         authRepository = AuthRepository()
 
+        // Initialize sensor manager for crash detection
+        sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
         initializeViews(view)
         loadUserData()
         setupClickListeners()
         setupSafetySettingsListeners(view)
         setupSOSButton(view)
+
+        // Register broadcast receiver for crash alerts
+        val filter = IntentFilter().apply {
+            addAction("CRASH_DETECTED")
+            addAction("CRASH_CANCELLED")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireContext().registerReceiver(crashReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            requireContext().registerReceiver(crashReceiver, filter)
+        }
     }
 
     private fun initializeViews(view: View) {
@@ -122,7 +165,7 @@ class ProfileFragment : Fragment() {
         val prefs = requireContext().getSharedPreferences("app_prefs", AppCompatActivity.MODE_PRIVATE)
 
         // Crash Detection
-        val isCrashOn = prefs.getBoolean("crash_detection", true)
+        val isCrashOn = prefs.getBoolean("crash_detection_enabled", true)
         crashDetectionSwitch.isChecked = isCrashOn
         crashStatusText.text = if (isCrashOn) "Enabled" else "Disabled"
         crashStatusText.setTextColor(if (isCrashOn)
@@ -130,19 +173,14 @@ class ProfileFragment : Fragment() {
         else android.graphics.Color.parseColor("#F44336"))
 
         // Background Location
-        val isLocationOn = prefs.getBoolean("background_location", true)
+        val isLocationOn = prefs.getBoolean("background_location_enabled", true)
         locationSwitch.isChecked = isLocationOn
         locationStatusText.text = if (isLocationOn) "Always On" else "Off"
 
-        // Sensitivity
-        val sensitivity = prefs.getInt("detection_sensitivity", 8)
+        // Sensitivity (0-60 scale)
+        val sensitivity = prefs.getInt("crash_detection_sensitivity", 35)
         sensitivitySeekBar.progress = sensitivity
-        val gForce = sensitivity + 4
-        sensitivityValue.text = when (gForce) {
-            in 4..6 -> "Low (${gForce}G)"
-            in 7..9 -> "Medium (${gForce}G)"
-            else -> "High (${gForce}G)"
-        }
+        sensitivityValue.text = "Threshold: $sensitivity"
 
         // SOS Method
         val sosMethod = prefs.getString("sos_method", "WhatsApp + SMS")
@@ -318,33 +356,68 @@ class ProfileFragment : Fragment() {
             crashStatusText.setTextColor(if (isChecked)
                 android.graphics.Color.parseColor("#4CAF50")
             else android.graphics.Color.parseColor("#F44336"))
-            prefs.edit().putBoolean("crash_detection", isChecked).apply()
-            Toast.makeText(context, "Crash detection ${if (isChecked) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
+            prefs.edit().putBoolean("crash_detection_enabled", isChecked).apply()
+
+            if (isChecked) {
+                startCrashDetectionService()
+                Toast.makeText(context, "Crash detection enabled", Toast.LENGTH_SHORT).show()
+            } else {
+                stopCrashDetectionService()
+                Toast.makeText(context, "Crash detection disabled", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Background Location Switch
         locationSwitch.setOnCheckedChangeListener { _, isChecked ->
             locationStatusText.text = if (isChecked) "Always On" else "Off"
-            prefs.edit().putBoolean("background_location", isChecked).apply()
+            prefs.edit().putBoolean("background_location_enabled", isChecked).apply()
             Toast.makeText(context, "Background location ${if (isChecked) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
         }
 
-        // Sensitivity SeekBar
+        // Sensitivity SeekBar (0-60 scale)
         sensitivitySeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val gForce = progress + 4
-                sensitivityValue.text = when (gForce) {
-                    in 4..6 -> "Low (${gForce}G)"
-                    in 7..9 -> "Medium (${gForce}G)"
-                    else -> "High (${gForce}G)"
-                }
+                sensitivityValue.text = "Threshold: $progress"
                 if (fromUser) {
-                    prefs.edit().putInt("detection_sensitivity", progress).apply()
+                    prefs.edit().putInt("crash_detection_sensitivity", progress).apply()
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+    }
+
+    private fun startCrashDetectionService() {
+        val intent = Intent(requireContext(), CrashDetectionService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            requireContext().startForegroundService(intent)
+        } else {
+            requireContext().startService(intent)
+        }
+        isCrashDetectionRunning = true
+    }
+
+    private fun stopCrashDetectionService() {
+        val intent = Intent(requireContext(), CrashDetectionService::class.java)
+        requireContext().stopService(intent)
+        isCrashDetectionRunning = false
+    }
+
+    private fun showCrashAlertDialog(message: String) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("⚠️ CRASH DETECTED")
+            .setMessage("$message\n\nSOS will be sent in 5 seconds unless you cancel.")
+            .setPositiveButton("Cancel SOS") { _, _ ->
+                // Cancel crash alert
+                val cancelIntent = Intent("CRASH_CANCELLED")
+                requireContext().sendBroadcast(cancelIntent)
+                Toast.makeText(context, "SOS cancelled", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Send SOS Now") { _, _ ->
+                sendSOS()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun showSosMethodDialog() {
@@ -550,5 +623,15 @@ class ProfileFragment : Fragment() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Unregister receiver to prevent memory leaks
+        try {
+            requireContext().unregisterReceiver(crashReceiver)
+        } catch (e: Exception) {
+            // Receiver already unregistered
+        }
     }
 }
