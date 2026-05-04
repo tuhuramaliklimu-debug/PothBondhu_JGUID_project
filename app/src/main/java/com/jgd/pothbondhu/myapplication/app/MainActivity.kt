@@ -141,7 +141,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         cardFindHelp.setOnClickListener {
-            Toast.makeText(this, "🗺️ Find Help - Map Coming Soon!", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, NearbyActivity::class.java))
         }
 
         cardJourney.setOnClickListener {

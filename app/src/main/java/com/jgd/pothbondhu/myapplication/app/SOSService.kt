@@ -39,7 +39,7 @@ class SOSService(private val context: Context) {
         getCurrentLocation { location ->
             if (location == null) {
                 Log.e(TAG, "❌ Failed to get current location")
-                onComplete(false, "Could not get current location", null)
+                onComplete(false, "Could not get current location. Please ensure GPS is enabled and you have set a mock location on emulator.", null)
                 return@getCurrentLocation
             }
 
@@ -59,7 +59,7 @@ class SOSService(private val context: Context) {
                     // Show notification
                     showNotification("SOS Sent", "Emergency alert sent to ${contacts.size} contacts")
 
-                    // Complete without Firestore
+                    // Complete successfully
                     onComplete(true, "SOS sent successfully to ${contacts.size} contacts", null)
                 }
             }
@@ -82,17 +82,40 @@ class SOSService(private val context: Context) {
         fusedLocationClient.lastLocation
             .addOnSuccessListener { location ->
                 if (location != null) {
-                    Log.d(TAG, "Location found: ${location.latitude}, ${location.longitude}")
+                    Log.d(TAG, "Location found via FusedLocationProvider: ${location.latitude}, ${location.longitude}")
                     callback(location)
                 } else {
-                    Log.e(TAG, "Location is null")
-                    callback(null)
+                    Log.e(TAG, "Location is null from FusedLocationProvider - waiting for GPS fix")
+                    // Try to get a fresh location
+                    requestFreshLocation(callback)
                 }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to get location: ${e.message}")
                 callback(null)
             }
+    }
+
+    private fun requestFreshLocation(callback: (Location?) -> Unit) {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            callback(null)
+            return
+        }
+
+        // Try to get a fresh location update
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                Log.d(TAG, "Fresh location obtained: ${location.latitude}, ${location.longitude}")
+                callback(location)
+            } else {
+                Log.e(TAG, "Still no location available. Please set mock location on emulator.")
+                callback(null)
+            }
+        }
     }
 
     private fun getAddressFromLocation(location: Location, callback: (String) -> Unit) {
@@ -102,7 +125,7 @@ class SOSService(private val context: Context) {
             if (addresses != null && addresses.isNotEmpty()) {
                 val address = addresses[0]
                 val addressString = buildString {
-                    append(address.getAddressLine(0) ?: "")
+                    address.getAddressLine(0)?.let { append(it) }
                     if (!address.locality.isNullOrEmpty()) append(", ${address.locality}")
                     if (!address.countryName.isNullOrEmpty()) append(", ${address.countryName}")
                 }

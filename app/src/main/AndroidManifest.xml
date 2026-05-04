@@ -28,6 +28,17 @@
     <!-- For special use foreground service type (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="uber" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="pathao" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -84,6 +95,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Crash detection and emergency alerts" />
         </service>
+
+        <activity
+            android:name=".NearbyActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
 
     </application>
 

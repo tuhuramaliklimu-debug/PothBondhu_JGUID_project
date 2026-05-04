@@ -110,6 +110,10 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
             else -> "$category near $latitude,$longitude"
         }
 
-        return api.search(searchQuery)
+        return try {
+            api.search(searchQuery)
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }

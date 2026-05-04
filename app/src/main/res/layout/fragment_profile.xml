@@ -24,9 +24,9 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/header_gradient"
                 android:orientation="vertical"
-                android:padding="20dp"
-                android:background="@drawable/header_gradient">
+                android:padding="20dp">
 
                 <RelativeLayout
                     android:layout_width="match_parent"
@@ -37,103 +37,103 @@
                         android:id="@+id/avatarInitials"
                         android:layout_width="80dp"
                         android:layout_height="80dp"
-                        android:text="AN"
-                        android:textSize="28sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/navy_primary"
-                        android:gravity="center"
+                        android:layout_centerHorizontal="true"
                         android:background="@drawable/avatar_large"
-                        android:layout_centerHorizontal="true" />
+                        android:gravity="center"
+                        android:text="AN"
+                        android:textColor="@color/navy_primary"
+                        android:textSize="28sp"
+                        android:textStyle="bold" />
                 </RelativeLayout>
 
                 <TextView
                     android:id="@+id/profileName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
                     android:text="Anisa Tahsin Nisa"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
                     android:textColor="@color/beige_light"
-                    android:layout_gravity="center_horizontal" />
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/profileLocation"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Dhaka, Bangladesh"
-                    android:textSize="14sp"
-                    android:textColor="@color/beige_light"
                     android:layout_gravity="center_horizontal"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="12dp"
+                    android:text="Dhaka, Bangladesh"
+                    android:textColor="@color/beige_light"
+                    android:textSize="14sp" />
 
                 <Button
                     android:id="@+id/editProfileBtn"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
-                    android:text="EDIT PROFILE"
-                    android:textSize="12sp"
+                    android:layout_gravity="center_horizontal"
                     android:backgroundTint="@color/beige_light"
+                    android:text="EDIT PROFILE"
                     android:textColor="@color/navy_primary"
-                    android:layout_gravity="center_horizontal" />
+                    android:textSize="12sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="16dp">
+                    android:layout_marginTop="16dp"
+                    android:orientation="horizontal">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center">
+                        android:gravity="center"
+                        android:orientation="vertical">
 
                         <TextView
                             android:id="@+id/contactCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
+                            android:textColor="@color/beige_light"
                             android:textSize="24sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/beige_light" />
+                            android:textStyle="bold" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Contacts"
-                            android:textSize="12sp"
-                            android:textColor="@color/beige_light" />
+                            android:textColor="@color/beige_light"
+                            android:textSize="12sp" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="1dp"
                         android:layout_height="40dp"
-                        android:background="@color/beige_light"
-                        android:alpha="0.3" />
+                        android:alpha="0.3"
+                        android:background="@color/beige_light" />
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center">
+                        android:gravity="center"
+                        android:orientation="vertical">
 
                         <TextView
                             android:id="@+id/alertCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="12"
+                            android:textColor="@color/beige_light"
                             android:textSize="24sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/beige_light" />
+                            android:textStyle="bold" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Alerts Sent"
-                            android:textSize="12sp"
-                            android:textColor="@color/beige_light" />
+                            android:textColor="@color/beige_light"
+                            android:textSize="12sp" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
