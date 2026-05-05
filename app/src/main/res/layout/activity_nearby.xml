@@ -58,7 +58,6 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-
         <org.osmdroid.views.MapView
             android:id="@+id/mapView"
             android:layout_width="match_parent"
@@ -72,7 +71,6 @@
             android:layout_gravity="center"
             android:visibility="gone" />
 
-
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/myLocationFab"
             android:layout_width="wrap_content"
@@ -83,7 +81,7 @@
             app:backgroundTint="@color/navy_primary"
             app:tint="@color/beige_light" />
 
-        <!-- Place Details Panel (acting as a bottom sheet) -->
+        <!-- Place Details Panel (Bottom Sheet) - ENHANCED -->
         <androidx.cardview.widget.CardView
             android:id="@+id/bottomSheet"
             android:layout_width="match_parent"
@@ -100,6 +98,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- Place Name -->
                 <TextView
                     android:id="@+id/placeName"
                     android:layout_width="match_parent"
@@ -108,22 +107,50 @@
                     android:textStyle="bold"
                     android:textColor="@color/navy_primary" />
 
+                <!-- Place Address -->
                 <TextView
                     android:id="@+id/placeAddress"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textSize="14sp"
-                    android:textColor="@android:color/darker_gray" />
+                    android:textSize="13sp"
+                    android:textColor="@android:color/darker_gray"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
 
+                <!-- Place Distance -->
                 <TextView
                     android:id="@+id/placeDistance"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:textSize="14sp"
-                    android:textStyle="italic" />
+                    android:textStyle="italic"
+                    android:textColor="@color/navy_light" />
 
+                <!-- Place Phone (Police/Hospital Contact) -->
+                <TextView
+                    android:id="@+id/placePhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="📞 Emergency: 999"
+                    android:textSize="14sp"
+                    android:textColor="@color/navy_light"
+                    android:visibility="gone" />
+
+                <!-- Place Emergency Info (24/7 Service, etc.) -->
+                <TextView
+                    android:id="@+id/placeEmergency"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="🚓 24/7 Police Service"
+                    android:textSize="14sp"
+                    android:textColor="@color/navy_primary"
+                    android:visibility="gone" />
+
+                <!-- Action Buttons Row 1 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -133,22 +160,41 @@
                     <Button
                         android:id="@+id/btnDirections"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
                         android:layout_marginEnd="8dp"
-                        android:text="Directions"
+                        android:text="📍 Directions"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
                         android:backgroundTint="@color/navy_primary"
                         android:textColor="@color/beige_light" />
 
                     <Button
                         android:id="@+id/btnBookRide"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
-                        android:text="Book Ride"
+                        android:text="🚗 Book Ride"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
                         android:backgroundTint="@color/navy_primary"
                         android:textColor="@color/beige_light" />
+
                 </LinearLayout>
+
+                <!-- Call Button (for Police/Hospital Emergency) -->
+                <Button
+                    android:id="@+id/btnCall"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="8dp"
+                    android:text="📞 Call Police"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#E74C3C"
+                    android:textColor="@color/beige_light"
+                    android:visibility="gone" />
+
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
