@@ -63,11 +63,11 @@ dependencies {
     implementation 'com.google.android.gms:play-services-location:21.0.1'
 
     // Credentials and Google ID (for future Google Sign-In)
-    implementation 'androidx.credentials:credentials:1.2.0'
-    implementation 'androidx.credentials:credentials-play-services-auth:1.2.0'
-    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.0'
+    implementation libs.androidx.credentials
+    implementation libs.androidx.credentials.play.services.auth
+    implementation libs.googleid
 
-    // Lifecycle and Coroutines
+
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 

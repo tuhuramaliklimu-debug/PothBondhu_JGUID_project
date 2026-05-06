@@ -108,8 +108,9 @@ class NearbyActivity : AppCompatActivity() {
                         "📍 Location found: ${it.latitude}, ${it.longitude}",
                         Toast.LENGTH_LONG
                     ).show()
-                    // Auto-search for hospitals by default
-                    searchNearbyPlaces("hospital")
+                    // Auto-search for passed category or hospital by default
+                    selectedCategory = intent.getStringExtra("selected_category") ?: "hospital"
+                    searchNearbyPlaces(selectedCategory)
                 }
             }
         }

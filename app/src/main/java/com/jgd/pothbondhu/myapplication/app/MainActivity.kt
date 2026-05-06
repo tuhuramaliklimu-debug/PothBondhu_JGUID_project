@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity() {
     private var sosCountDownTimer: CountDownTimer? = null
     private var isSosActive = false
 
-    // Broadcast receiver for crash detection alerts
     private val crashReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -65,23 +64,19 @@ class MainActivity : AppCompatActivity() {
         sosService = SOSService(this)
         crashDetectionServiceIntent = Intent(this, CrashDetectionService::class.java)
 
-        // Check if user is logged in
         if (!authRepository.isUserLoggedIn()) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
 
-        // Request SMS permission
         requestSmsPermission()
 
-        // Initialize OSM Helper for location
         mapView = findViewById(R.id.mapView)
         osmHelper = OSMHelper(this, mapView)
         osmHelper.setupMap()
         osmHelper.enableMyLocation()
 
-        // Initialize views
         val sosFab = findViewById<ExtendedFloatingActionButton>(R.id.sosFab)
         val bottomNavigation = findViewById<BottomNavigationView>(R.id.bottomNavigation)
         val addContactButton = findViewById<Button>(R.id.addContactButton)
@@ -100,13 +95,10 @@ class MainActivity : AppCompatActivity() {
         val bloodGroup = findViewById<TextView>(R.id.bloodGroup)
         val allergies = findViewById<TextView>(R.id.allergies)
 
-        // Load user data
         loadUserData(userName, userLocation, bloodGroup, allergies, contactCount)
 
-        // Load emergency contacts dynamically
         loadEmergencyContacts()
 
-        // Set Crash Detection status
         val isCrashDetectionOn = getSharedPreferences("app_prefs", MODE_PRIVATE)
             .getBoolean("crash_detection_enabled", true)
         crashStatus.text = if (isCrashDetectionOn) "● On" else "○ Off"
@@ -114,12 +106,10 @@ class MainActivity : AppCompatActivity() {
             android.graphics.Color.parseColor("#4CAF50")
         else android.graphics.Color.parseColor("#F44336"))
 
-        // Start crash detection service if enabled
         if (isCrashDetectionOn) {
             startCrashDetectionService()
         }
 
-        // SOS Button
         sosFab.setOnClickListener {
             showSOSConfirmationDialog()
         }
@@ -129,13 +119,11 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Go to Profile tab to add emergency contacts", Toast.LENGTH_SHORT).show()
         }
 
-        // Feature Card Click Listeners
         cardSos.setOnClickListener {
             showSOSConfirmationDialog()
         }
 
         cardCrash.setOnClickListener {
-            // Navigate to crash detection settings in Profile
             showProfileFragment()
             Toast.makeText(this, "Go to Profile → Safety Settings to adjust crash detection", Toast.LENGTH_LONG).show()
         }
@@ -161,14 +149,39 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, RideBookingActivity::class.java))
         }
 
-        // Setup bottom navigation
         setupBottomNavigation(bottomNavigation)
-
-        // By default, show home content
         showHomeContent()
-
-        // Register broadcast receiver for crash detection
         registerCrashReceiver()
+    }
+
+    private fun loadUserData(
+        userName: TextView,
+        userLocation: TextView,
+        bloodGroup: TextView,
+        allergies: TextView,
+        contactCount: TextView
+    ) {
+        val userId = authRepository.getCurrentUserId()
+        if (userId != null) {
+            authRepository.getUserProfile(userId) { success, user ->
+                if (success && user != null) {
+                    userName.text = user.userName.ifEmpty { "PothBondhu User" }
+                    bloodGroup.text = "Blood Group: ${user.bloodGroup.ifEmpty { "Not set" }}"
+                    allergies.text = "Allergies: ${user.allergies.ifEmpty { "None" }}"
+                    userLocation.text = user.location.ifEmpty { "Dhaka, Bangladesh" }
+
+                    Log.d("MainActivity", "User loaded: ${user.userName}, Location: ${user.location}")
+                } else {
+                    Log.e("MainActivity", "Failed to load user profile")
+                    userName.text = authRepository.getUserEmail()?.split("@")?.first() ?: "PothBondhu User"
+                    userLocation.text = "Dhaka, Bangladesh"
+                }
+            }
+        } else {
+            Log.e("MainActivity", "User ID is null")
+            userName.text = "PothBondhu User"
+            userLocation.text = "Dhaka, Bangladesh"
+        }
     }
 
     private fun registerCrashReceiver() {
@@ -192,17 +205,11 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "Crash detection service started")
     }
 
-    private fun stopCrashDetectionService() {
-        stopService(crashDetectionServiceIntent)
-        Log.d("MainActivity", "Crash detection service stopped")
-    }
-
     private fun showCrashAlertDialog(message: String) {
         MaterialAlertDialogBuilder(this)
             .setTitle("⚠️ CRASH DETECTED")
             .setMessage("$message\n\nSOS will be sent in 5 seconds unless you cancel.")
             .setPositiveButton("Cancel SOS") { _, _ ->
-                // Cancel crash alert
                 val cancelIntent = Intent("CRASH_CANCELLED")
                 sendBroadcast(cancelIntent)
                 Toast.makeText(this, "SOS cancelled", Toast.LENGTH_SHORT).show()
@@ -219,74 +226,7 @@ class MainActivity : AppCompatActivity() {
         sendSOS()
     }
 
-    // ========== TEST FUNCTION FOR DEBUGGING ==========
-
-    private fun testSOSFunctionality() {
-        Log.d("SOS_TEST", "========== SOS TEST STARTED ==========")
-
-        // Test 1: Check Emergency Contacts
-        authRepository.getEmergencyContacts { success, contacts ->
-            if (success) {
-                Log.d("SOS_TEST", "✅ Test 1: Contacts found - ${contacts.size} contact(s)")
-                Toast.makeText(this, "Contacts: ${contacts.size} found", Toast.LENGTH_SHORT).show()
-
-                if (contacts.isEmpty()) {
-                    Log.e("SOS_TEST", "❌ Test 1 FAILED: No emergency contacts added!")
-                    Toast.makeText(this, "❌ No emergency contacts! Please add contacts in Profile.", Toast.LENGTH_LONG).show()
-                    return@getEmergencyContacts
-                } else {
-                    for (contact in contacts) {
-                        Log.d("SOS_TEST", "   - ${contact.name}: ${contact.phoneNumber}")
-                    }
-                }
-            } else {
-                Log.e("SOS_TEST", "❌ Test 1 FAILED: Could not fetch contacts")
-                Toast.makeText(this, "❌ Failed to fetch contacts", Toast.LENGTH_SHORT).show()
-                return@getEmergencyContacts
-            }
-
-            // Test 2: Check Location
-            val location = osmHelper.getLastKnownLocation()
-            if (location != null) {
-                Log.d("SOS_TEST", "✅ Test 2: Location found - Lat: ${location.latitude}, Lon: ${location.longitude}")
-                Toast.makeText(this, "Location: ${location.latitude}, ${location.longitude}", Toast.LENGTH_SHORT).show()
-            } else {
-                Log.e("SOS_TEST", "❌ Test 2 FAILED: Could not get location! Set mock location in emulator.")
-                Toast.makeText(this, "❌ No location! Set mock location in emulator (Extended Controls → Location)", Toast.LENGTH_LONG).show()
-                return@getEmergencyContacts
-            }
-
-            // Test 3: Check SMS Permission
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
-                Log.d("SOS_TEST", "✅ Test 3: SMS permission granted")
-                Toast.makeText(this, "SMS permission: GRANTED", Toast.LENGTH_SHORT).show()
-            } else {
-                Log.e("SOS_TEST", "❌ Test 3 FAILED: SMS permission not granted")
-                Toast.makeText(this, "❌ SMS permission denied! Please grant permission.", Toast.LENGTH_LONG).show()
-                requestSmsPermission()
-                return@getEmergencyContacts
-            }
-
-            // Test 4: Try sending a test SMS to first contact
-            try {
-                val testMessage = "🧪 TEST SOS from PothBondhu App\n\nThis is a test message. Your app is working!"
-                val smsManager = SmsManager.getDefault()
-                smsManager.sendTextMessage(contacts[0].phoneNumber, null, testMessage, null, null)
-                Log.d("SOS_TEST", "✅ Test 4: Test SMS sent to ${contacts[0].name} (${contacts[0].phoneNumber})")
-                Toast.makeText(this, "✅ Test SMS sent to ${contacts[0].name}!", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                Log.e("SOS_TEST", "❌ Test 4 FAILED: ${e.message}")
-                Toast.makeText(this, "❌ SMS failed: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-
-            Log.d("SOS_TEST", "========== SOS TEST COMPLETED ==========")
-        }
-    }
-
-    // ========== ORIGINAL SOS FUNCTIONS ==========
-
     private fun showSOSConfirmationDialog() {
-        // Check if there are emergency contacts
         authRepository.getEmergencyContacts { success, contacts ->
             if (!success || contacts.isEmpty()) {
                 MaterialAlertDialogBuilder(this)
@@ -300,7 +240,6 @@ class MainActivity : AppCompatActivity() {
                 return@getEmergencyContacts
             }
 
-            // Show confirmation dialog
             MaterialAlertDialogBuilder(this)
                 .setTitle("🚨 SOS EMERGENCY 🚨")
                 .setMessage("This will send your live location to ${contacts.size} emergency contact(s).\n\nDo you want to proceed?")
@@ -318,7 +257,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Create countdown dialog
         val dialogView = layoutInflater.inflate(R.layout.dialog_sos_countdown, null)
         val timerText = dialogView.findViewById<TextView>(R.id.timerText)
         val cancelButton = dialogView.findViewById<Button>(R.id.cancelButton)
@@ -331,7 +269,6 @@ class MainActivity : AppCompatActivity() {
 
         dialog.show()
 
-        // Start 5-second countdown
         var timeLeft = 5
         timerText.text = "Sending SOS in $timeLeft seconds..."
 
@@ -369,7 +306,6 @@ class MainActivity : AppCompatActivity() {
                 return@getEmergencyContacts
             }
 
-            // Show progress dialog
             val progressDialog = AlertDialog.Builder(this)
                 .setTitle("Sending SOS...")
                 .setMessage("Sending alerts to ${contacts.size} contact(s)...\nPlease wait.")
@@ -511,7 +447,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val nameText = TextView(this).apply {
-            text = "${contact.name} (${getRelationshipString(contact.name)})"
+            text = contact.name
             textSize = 14f
             setTextColor(resources.getColor(R.color.navy_dark))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -547,34 +483,7 @@ class MainActivity : AppCompatActivity() {
         return layout
     }
 
-    private fun getRelationshipString(name: String): String {
-        return when {
-            name.contains("Fatima", ignoreCase = true) -> "Mom"
-            name.contains("Karim", ignoreCase = true) -> "Dad"
-            name.contains("Roni", ignoreCase = true) -> "Sister"
-            else -> "Contact"
-        }
-    }
 
-    private fun loadUserData(
-        userName: TextView,
-        userLocation: TextView,
-        bloodGroup: TextView,
-        allergies: TextView,
-        contactCount: TextView
-    ) {
-        val userId = authRepository.getCurrentUserId()
-        if (userId != null) {
-            authRepository.getUserProfile(userId) { success, user ->
-                if (success && user != null) {
-                    userName.text = user.userName.ifEmpty { "PothBondhu User" }
-                    bloodGroup.text = "Blood Group: ${user.bloodGroup.ifEmpty { "Not set" }}"
-                    allergies.text = "Allergies: ${user.allergies.ifEmpty { "None" }}"
-                }
-            }
-        }
-        userLocation.text = "Dhaka, Bangladesh"
-    }
 
     private fun requestSmsPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
@@ -645,7 +554,7 @@ class MainActivity : AppCompatActivity() {
         try {
             unregisterReceiver(crashReceiver)
         } catch (e: Exception) {
-            // Receiver not registered
+
         }
     }
 }

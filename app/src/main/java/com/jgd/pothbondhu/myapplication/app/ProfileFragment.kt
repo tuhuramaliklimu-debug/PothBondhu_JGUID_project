@@ -34,7 +34,6 @@ class ProfileFragment : Fragment() {
     private var accelerometer: Sensor? = null
     private var isCrashDetectionRunning = false
 
-    // Broadcast receiver for crash detection alerts
     private val crashReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -48,8 +47,6 @@ class ProfileFragment : Fragment() {
             }
         }
     }
-
-    // UI Elements
     private lateinit var avatarInitials: TextView
     private lateinit var profileName: TextView
     private lateinit var profileLocation: TextView
@@ -63,7 +60,6 @@ class ProfileFragment : Fragment() {
     private lateinit var phoneValue: TextView
     private lateinit var contactsContainer: LinearLayout
 
-    // Safety Settings UI Elements
     private lateinit var crashDetectionSwitch: SwitchMaterial
     private lateinit var locationSwitch: SwitchMaterial
     private lateinit var sensitivitySeekBar: SeekBar
@@ -84,8 +80,6 @@ class ProfileFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         authRepository = AuthRepository()
-
-        // Initialize sensor manager for crash detection
         sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
@@ -95,7 +89,6 @@ class ProfileFragment : Fragment() {
         setupSafetySettingsListeners(view)
         setupSOSButton(view)
 
-        // Register broadcast receiver for crash alerts
         val filter = IntentFilter().apply {
             addAction("CRASH_DETECTED")
             addAction("CRASH_CANCELLED")
@@ -151,20 +144,13 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // Load emergency contacts
         loadEmergencyContacts()
-
-        // Load alert count
         alertCount.text = "12"
-
-        // Load saved preferences for safety settings
         loadSafetySettings()
     }
 
     private fun loadSafetySettings() {
         val prefs = requireContext().getSharedPreferences("app_prefs", AppCompatActivity.MODE_PRIVATE)
-
-        // Crash Detection
         val isCrashOn = prefs.getBoolean("crash_detection_enabled", true)
         crashDetectionSwitch.isChecked = isCrashOn
         crashStatusText.text = if (isCrashOn) "Enabled" else "Disabled"
@@ -172,17 +158,14 @@ class ProfileFragment : Fragment() {
             android.graphics.Color.parseColor("#4CAF50")
         else android.graphics.Color.parseColor("#F44336"))
 
-        // Background Location
         val isLocationOn = prefs.getBoolean("background_location_enabled", true)
         locationSwitch.isChecked = isLocationOn
         locationStatusText.text = if (isLocationOn) "Always On" else "Off"
 
-        // Sensitivity (0-60 scale)
         val sensitivity = prefs.getInt("crash_detection_sensitivity", 35)
         sensitivitySeekBar.progress = sensitivity
         sensitivityValue.text = "Threshold: $sensitivity"
 
-        // SOS Method
         val sosMethod = prefs.getString("sos_method", "WhatsApp + SMS")
         sosMethodValue.text = sosMethod
     }
@@ -282,6 +265,7 @@ class ProfileFragment : Fragment() {
             setOnClickListener {
                 Toast.makeText(context, "Calling ${contact.name}...", Toast.LENGTH_SHORT).show()
             }
+
         }
 
         layout.addView(callBtn)
@@ -350,7 +334,6 @@ class ProfileFragment : Fragment() {
     private fun setupSafetySettingsListeners(view: View) {
         val prefs = requireContext().getSharedPreferences("app_prefs", AppCompatActivity.MODE_PRIVATE)
 
-        // Crash Detection Switch
         crashDetectionSwitch.setOnCheckedChangeListener { _, isChecked ->
             crashStatusText.text = if (isChecked) "Enabled" else "Disabled"
             crashStatusText.setTextColor(if (isChecked)
@@ -471,13 +454,22 @@ class ProfileFragment : Fragment() {
             .setTitle("Edit Profile Name")
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
-                val newName = editText.text.toString()
+                val newName = editText.text.toString().trim()
                 if (newName.isNotBlank()) {
-                    profileName.text = newName
                     val userId = authRepository.getCurrentUserId()
                     if (userId != null) {
                         authRepository.saveUserProfile(userId, mapOf("userName" to newName)) { success, message ->
-                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            if (success) {
+
+                                profileName.text = newName
+
+                                val initials = newName.take(2).uppercase()
+                                avatarInitials.text = if (initials.length >= 2) initials else "PB"
+
+                                Toast.makeText(context, "Name updated successfully", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Failed to update: $message", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
