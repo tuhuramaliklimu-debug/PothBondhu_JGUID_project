@@ -1,0 +1,84 @@
+{
+  "blood_banks": [
+    {
+      "id": "1",
+      "name": "Bangladesh Red Crescent Blood Bank",
+      "address": "684-686 Boro Moghbazar, Dhaka",
+      "phone": "+880 2 9340001",
+      "availableGroups": ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"],
+      "district": "Dhaka",
+      "rating": 4.5,
+      "is24Hours": true
+    },
+    {
+      "id": "2",
+      "name": "Quantum Blood Bank",
+      "address": "Shyamoli, Dhaka",
+      "phone": "+880 2 9124116",
+      "availableGroups": ["A+", "B+", "O+", "AB+"],
+      "district": "Dhaka",
+      "rating": 4.2,
+      "is24Hours": false
+    },
+    {
+      "id": "3",
+      "name": "Sandhani Blood Bank",
+      "address": "BSMMU Campus, Shahbag, Dhaka",
+      "phone": "+880 2 9662126",
+      "availableGroups": ["A+", "B+", "O+", "AB+", "A-", "B-"],
+      "district": "Dhaka",
+      "rating": 4.7,
+      "is24Hours": true
+    },
+    {
+      "id": "4",
+      "name": "Shurjer Hashi Blood Bank",
+      "address": "Mirpur Road, Dhaka",
+      "phone": "+880 2 9117251",
+      "availableGroups": ["A+", "B+", "O+", "AB+"],
+      "district": "Dhaka",
+      "rating": 4.0,
+      "is24Hours": false
+    },
+    {
+      "id": "5",
+      "name": "Labaid Blood Bank",
+      "address": "Dhanmondi, Dhaka",
+      "phone": "+880 2 9677744",
+      "availableGroups": ["A+", "B+", "O+", "AB+", "A-", "B-", "O-", "AB-"],
+      "district": "Dhaka",
+      "rating": 4.6,
+      "is24Hours": true
+    },
+    {
+      "id": "6",
+      "name": "Popular Blood Bank",
+      "address": "Dhanmondi, Dhaka",
+      "phone": "+880 2 9120111",
+      "availableGroups": ["A+", "B+", "O+"],
+      "district": "Dhaka",
+      "rating": 4.1,
+      "is24Hours": false
+    },
+    {
+      "id": "7",
+      "name": "Al-Razi Blood Bank",
+      "address": "Chittagong",
+      "phone": "+880 31 612345",
+      "availableGroups": ["A+", "B+", "O+", "AB+"],
+      "district": "Chittagong",
+      "rating": 4.3,
+      "is24Hours": false
+    },
+    {
+      "id": "8",
+      "name": "Sylhet Blood Bank",
+      "address": "Sylhet",
+      "phone": "+880 821 713456",
+      "availableGroups": ["A+", "B+", "O+", "AB+", "A-"],
+      "district": "Sylhet",
+      "rating": 4.0,
+      "is24Hours": false
+    }
+  ]
+}
