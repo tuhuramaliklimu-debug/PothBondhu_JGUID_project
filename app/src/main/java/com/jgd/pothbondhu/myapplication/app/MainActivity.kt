@@ -132,19 +132,16 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, NearbyActivity::class.java))
         }
 
-        // ========== JOURNEY TIMER CARD - UPDATED ==========
         cardJourney.setOnClickListener {
             startActivity(Intent(this, JourneyTimerActivity::class.java))
         }
 
         cardBloodBank.setOnClickListener {
-            // Open Nearby Activity with blood bank category
             val intent = Intent(this, NearbyActivity::class.java)
             intent.putExtra("selected_category", "blood_bank")
             startActivity(intent)
         }
 
-        // ========== BOOK RIDE CARD - UPDATED ==========
         cardRide.setOnClickListener {
             startActivity(Intent(this, RideBookingActivity::class.java))
         }
@@ -483,8 +480,6 @@ class MainActivity : AppCompatActivity() {
         return layout
     }
 
-
-
     private fun requestSmsPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED) {
@@ -494,6 +489,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ========== STEP 10: UPDATED BOTTOM NAVIGATION WITH ALERTS HISTORY ==========
     private fun setupBottomNavigation(bottomNavigation: BottomNavigationView) {
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -506,7 +502,8 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_alerts -> {
-                    Toast.makeText(this, "🔔 Alerts History - Coming Soon!", Toast.LENGTH_SHORT).show()
+                    // ========== UPDATED: Open Alert History Activity ==========
+                    startActivity(Intent(this, AlertHistoryActivity::class.java))
                     true
                 }
                 R.id.nav_profile -> {
@@ -554,7 +551,7 @@ class MainActivity : AppCompatActivity() {
         try {
             unregisterReceiver(crashReceiver)
         } catch (e: Exception) {
-
+            // Receiver not registered
         }
     }
 }

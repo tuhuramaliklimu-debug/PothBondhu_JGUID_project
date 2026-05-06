@@ -11,10 +11,13 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import kotlin.math.sqrt
 
 class CrashDetectionService : Service(), SensorEventListener {
@@ -23,6 +26,7 @@ class CrashDetectionService : Service(), SensorEventListener {
     private var accelerometer: Sensor? = null
     private var powerManager: PowerManager? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     private var lastUpdateTime: Long = 0
     private var lastX = 0f
@@ -45,6 +49,7 @@ class CrashDetectionService : Service(), SensorEventListener {
 
     override fun onCreate() {
         super.onCreate()
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         initSensors()
         acquireWakeLock()
         startForegroundService()
@@ -158,10 +163,16 @@ class CrashDetectionService : Service(), SensorEventListener {
     private fun triggerCrashAlert() {
         crashCountdownActive = true
 
-        // Show crash alert dialog via broadcast
-        val intent = Intent("CRASH_DETECTED")
-        intent.putExtra("message", "Vehicle crash detected. Starting SOS countdown.")
-        sendBroadcast(intent)
+        // Get current location for alert history
+        getCurrentLocation { location ->
+            // Show crash alert dialog via broadcast
+            val intent = Intent("CRASH_DETECTED")
+            intent.putExtra("message", "Vehicle crash detected. Starting SOS countdown.")
+            sendBroadcast(intent)
+
+            // Save to alert history
+            saveCrashToHistory(location)
+        }
 
         // Wait 5 seconds for user to cancel
         android.os.Handler(mainLooper).postDelayed({
@@ -169,6 +180,46 @@ class CrashDetectionService : Service(), SensorEventListener {
                 executeCrashSOS()
             }
         }, 5000)
+    }
+
+    // ========== NEW FUNCTION: Get Current Location for Alert ==========
+    private fun getCurrentLocation(callback: (Location?) -> Unit) {
+        try {
+            fusedLocationClient.lastLocation
+                .addOnSuccessListener { location ->
+                    callback(location)
+                }
+                .addOnFailureListener {
+                    callback(null)
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("CrashDetection", "Failed to get location: ${e.message}")
+            callback(null)
+        }
+    }
+
+    // ========== NEW FUNCTION: Save Crash to Alert History ==========
+    private fun saveCrashToHistory(location: Location?) {
+        try {
+            val alertHistoryManager = AlertHistoryManager(this)
+
+            val alert = AlertHistory(
+                id = System.currentTimeMillis().toString(),
+                type = "Crash",
+                timestamp = System.currentTimeMillis(),
+                locationLat = location?.latitude ?: 0.0,
+                locationLon = location?.longitude ?: 0.0,
+                locationAddress = if (location != null) "${location.latitude}, ${location.longitude}" else "Unknown location",
+                contactsNotified = 0, // Will be updated when SOS is triggered
+                status = "Detected",
+                details = "Vehicle crash detected by accelerometer. SOS will be triggered automatically if not cancelled."
+            )
+
+            alertHistoryManager.saveAlert(alert)
+            android.util.Log.d("CrashDetection", "✅ Crash event saved to history")
+        } catch (e: Exception) {
+            android.util.Log.e("CrashDetection", "❌ Failed to save crash to history: ${e.message}")
+        }
     }
 
     private fun executeCrashSOS() {

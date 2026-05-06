@@ -56,6 +56,9 @@ class SOSService(private val context: Context) {
                     // Send SMS to all contacts
                     sendSmsToContacts(contacts, location, address, userName)
 
+                    // ========== NEW: Save to Alert History ==========
+                    saveAlertToHistory(authRepository, contacts, location, address, userName)
+
                     // Show notification
                     showNotification("SOS Sent", "Emergency alert sent to ${contacts.size} contacts")
 
@@ -63,6 +66,39 @@ class SOSService(private val context: Context) {
                     onComplete(true, "SOS sent successfully to ${contacts.size} contacts", null)
                 }
             }
+        }
+    }
+
+    // ========== NEW FUNCTION: Save Alert to History ==========
+    private fun saveAlertToHistory(
+        authRepository: AuthRepository,
+        contacts: List<EmergencyContact>,
+        location: Location,
+        address: String,
+        userName: String
+    ) {
+        try {
+            val alertHistoryManager = AlertHistoryManager(context)
+
+            val userEmail = authRepository.getUserEmail() ?: ""
+            val userId = authRepository.getCurrentUserId() ?: ""
+
+            val alert = AlertHistory(
+                id = System.currentTimeMillis().toString(),
+                type = "SOS",
+                timestamp = System.currentTimeMillis(),
+                locationLat = location.latitude,
+                locationLon = location.longitude,
+                locationAddress = address,
+                contactsNotified = contacts.size,
+                status = "Sent",
+                details = "SOS alert sent to ${contacts.size} contact(s) from $userName"
+            )
+
+            alertHistoryManager.saveAlert(alert)
+            Log.d(TAG, "✅ SOS alert saved to history")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to save alert to history: ${e.message}")
         }
     }
 

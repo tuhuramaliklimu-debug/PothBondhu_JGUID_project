@@ -113,6 +113,12 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- Alert History Activity -->
+        <activity
+            android:name=".AlertHistoryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- Crash Detection Service (Foreground Service) -->
         <service
             android:name=".CrashDetectionService"
