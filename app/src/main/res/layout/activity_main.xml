@@ -24,7 +24,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp">
+                android:paddingTop="24dp"
+                android:paddingBottom="16dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp">
 
                 <!-- Header Card -->
                 <androidx.cardview.widget.CardView
@@ -198,46 +201,7 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-                <!-- Emergency Contacts Section -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/emergency_contacts_title"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/navy_dark"
-                    android:layout_marginBottom="6dp" />
-
-                <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    app:cardCornerRadius="10dp"
-                    app:cardElevation="2dp">
-
-                    <!-- Dynamic Contacts Container - This will show your saved contacts -->
-                    <LinearLayout
-                        android:id="@+id/contactsContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="10dp" />
-
-                </androidx.cardview.widget.CardView>
-
-                <!-- Add Contact Button -->
-                <Button
-                    android:id="@+id/addContactButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginBottom="16dp"
-                    android:text="@string/add_contact"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="@color/navy_primary"
-                    android:textColor="@color/beige_light" />
-
-                <!-- Emergency Features Section -->
+                <!-- Emergency Features Section - MOVED UP BEFORE CONTACTS -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -250,9 +214,10 @@
                 <GridLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:rowCount="2"
+                    android:rowCount="3"
                     android:columnCount="3"
-                    android:padding="2dp">
+                    android:padding="2dp"
+                    android:layout_marginBottom="16dp">
 
                     <!-- SOS Alert -->
                     <androidx.cardview.widget.CardView
@@ -513,9 +478,101 @@
                         </LinearLayout>
                     </androidx.cardview.widget.CardView>
 
+                    <!-- Hotels -->
+                    <androidx.cardview.widget.CardView
+                        android:id="@+id/cardHotels"
+                        android:layout_width="0dp"
+                        android:layout_height="90dp"
+                        android:layout_columnWeight="1"
+                        android:layout_margin="3dp"
+                        app:cardCornerRadius="10dp"
+                        app:cardElevation="2dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🏨"
+                                android:textSize="28sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Hotels"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/navy_dark"
+                                android:layout_marginTop="4dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Find &amp; Book"
+                                android:textSize="9sp"
+                                android:textColor="@color/navy_light"
+                                android:gravity="center" />
+                        </LinearLayout>
+                    </androidx.cardview.widget.CardView>
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_columnWeight="1"
+                        android:visibility="invisible" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="0dp"
+                        android:layout_columnWeight="1"
+                        android:visibility="invisible" />
+
                 </GridLayout>
 
-                <!-- Hidden MapView for OSM Helper -->
+                <!-- Emergency Contacts Section - NOW AFTER FEATURES -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emergency_contacts_title"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/navy_dark"
+                    android:layout_marginBottom="6dp" />
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="2dp">
+
+                    <LinearLayout
+                        android:id="@+id/contactsContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="10dp" />
+
+                </androidx.cardview.widget.CardView>
+
+                <Button
+                    android:id="@+id/addContactButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="@string/add_contact"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/navy_primary"
+                    android:textColor="@color/beige_light" />
+
                 <org.osmdroid.views.MapView
                     android:id="@+id/mapView"
                     android:layout_width="match_parent"
@@ -526,7 +583,6 @@
         </ScrollView>
     </LinearLayout>
 
-    <!-- Fragment Container (for Profile, Nearby, Alerts) -->
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
@@ -534,7 +590,6 @@
         android:layout_weight="1"
         android:visibility="gone" />
 
-    <!-- SOS Floating Button -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/sosFab"
         android:layout_width="wrap_content"
@@ -548,7 +603,6 @@
         app:backgroundTint="#E74C3C"
         app:iconTint="@android:color/white" />
 
-    <!-- Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNavigation"
         android:layout_width="match_parent"
