@@ -9,6 +9,10 @@
         android:icon="@drawable/ic_nearby"
         android:title="Nearby" />
     <item
+        android:id="@+id/nav_journey"
+        android:icon="@drawable/ic_journey"
+        android:title="Journey" />
+    <item
         android:id="@+id/nav_alerts"
         android:icon="@drawable/ic_alerts"
         android:title="Alerts" />

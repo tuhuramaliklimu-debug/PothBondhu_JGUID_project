@@ -144,16 +144,21 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, NearbyActivity::class.java))
         }
 
+        // ========== JOURNEY TIMER CARD - UPDATED ==========
         cardJourney.setOnClickListener {
-            Toast.makeText(this, "⏱️ Journey Timer - Coming Soon!", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, JourneyTimerActivity::class.java))
         }
 
         cardBloodBank.setOnClickListener {
-            Toast.makeText(this, "🩸 Blood Bank Finder - Coming Soon!", Toast.LENGTH_SHORT).show()
+            // Open Nearby Activity with blood bank category
+            val intent = Intent(this, NearbyActivity::class.java)
+            intent.putExtra("selected_category", "blood_bank")
+            startActivity(intent)
         }
 
+        // ========== BOOK RIDE CARD - UPDATED ==========
         cardRide.setOnClickListener {
-            Toast.makeText(this, "🚗 Book Ride - Coming Soon!", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, RideBookingActivity::class.java))
         }
 
         // Setup bottom navigation
@@ -588,7 +593,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_nearby -> {
-                    Toast.makeText(this, "📍 Nearby Services - Coming Soon!", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this, NearbyActivity::class.java))
                     true
                 }
                 R.id.nav_alerts -> {

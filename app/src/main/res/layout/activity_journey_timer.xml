@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/beige_light">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/navy_primary"
+        app:titleTextColor="@color/beige_light"
+        app:title="Journey Timer" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Setup Layout -->
+            <LinearLayout
+                android:id="@+id/setupLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="visible">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="20dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🛡️ Safe Journey"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_dark"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Set your destination and expected arrival time. Your emergency contacts will be alerted if you don't check in on time."
+                            android:textSize="14sp"
+                            android:textColor="@color/navy_light"
+                            android:layout_marginBottom="20dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Destination"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_dark"
+                            android:layout_marginBottom="8dp" />
+
+                        <EditText
+                            android:id="@+id/destinationInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:hint="e.g., Home, Office, or specific address"
+                            android:inputType="text"
+                            android:background="@drawable/input_background"
+                            android:padding="16dp"
+                            android:layout_marginBottom="20dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Expected Arrival Time"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_dark"
+                            android:layout_marginBottom="8dp" />
+
+                        <TimePicker
+                            android:id="@+id/timePicker"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="20dp" />
+
+                        <Button
+                            android:id="@+id/startJourneyBtn"
+                            android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:text="🛡️ Start Safe Journey"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:backgroundTint="@color/navy_primary"
+                            android:textColor="@color/beige_light" />
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="#FFF8E7">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ℹ️ How it works"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_dark"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="1. Set your destination and expected arrival time\n2. Start your journey\n3. Check in when you arrive safely\n4. If you miss the check-in, emergency contacts are notified"
+                            android:textSize="12sp"
+                            android:textColor="@color/navy_light" />
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+            </LinearLayout>
+
+            <!-- Active Journey Layout -->
+            <LinearLayout
+                android:id="@+id/activeTimerLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="24dp"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/timerText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00:00:00"
+                            android:textSize="42sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_primary"
+                            android:typeface="monospace"
+                            android:layout_marginBottom="12dp" />
+
+                        <TextView
+                            android:id="@+id/statusText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🛡️ Journey in progress"
+                            android:textSize="14sp"
+                            android:textColor="@color/navy_light"
+                            android:layout_marginBottom="20dp" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="@color/beige_dark"
+                            android:layout_marginVertical="12dp" />
+
+                        <TextView
+                            android:id="@+id/destinationText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📍 Destination: "
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/navy_dark"
+                            android:layout_marginBottom="6dp" />
+
+                        <TextView
+                            android:id="@+id/expectedTimeText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="⏰ Expected by: "
+                            android:textSize="14sp"
+                            android:textColor="@color/navy_light"
+                            android:layout_marginBottom="24dp" />
+
+                        <!-- Button Row - Larger Buttons -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <Button
+                                android:id="@+id/checkInBtn"
+                                android:layout_width="match_parent"
+                                android:layout_height="56dp"
+                                android:layout_marginBottom="12dp"
+                                android:text="✅ CHECK IN - I HAVE ARRIVED"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:backgroundTint="#4CAF50"
+                                android:textColor="@android:color/white"
+                                android:padding="12dp" />
+
+                            <Button
+                                android:id="@+id/extendTimerBtn"
+                                android:layout_width="match_parent"
+                                android:layout_height="56dp"
+                                android:layout_marginBottom="12dp"
+                                android:text="⏰ EXTEND JOURNEY TIME"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:backgroundTint="@color/navy_primary"
+                                android:textColor="@color/beige_light"
+                                android:padding="12dp" />
+
+                            <Button
+                                android:id="@+id/cancelJourneyBtn"
+                                android:layout_width="match_parent"
+                                android:layout_height="56dp"
+                                android:text="❌ CANCEL JOURNEY"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:backgroundTint="#E74C3C"
+                                android:textColor="@android:color/white"
+                                android:padding="12dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

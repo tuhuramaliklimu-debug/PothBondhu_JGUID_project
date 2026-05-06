@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@color/beige_light">
+
+    <TextView
+        android:id="@+id/dialogTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Choose Ride Service"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/navy_dark"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/placeNameText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Destination Name"
+        android:textSize="14sp"
+        android:textColor="@color/navy_light"
+        android:layout_marginBottom="20dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/beige_dark"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/uberButton"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="🚗 Uber"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:backgroundTint="#000000"
+        android:textColor="@color/beige_light"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/pathaoButton"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="🛺 Pathao"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:backgroundTint="#E23744"
+        android:textColor="@color/beige_light"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/cancelButton"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:text="Cancel"
+        android:textSize="14sp"
+        android:backgroundTint="@color/beige_dark"
+        android:textColor="@color/navy_light" />
+
+</LinearLayout>

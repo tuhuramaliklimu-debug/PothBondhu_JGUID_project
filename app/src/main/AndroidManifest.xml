@@ -28,14 +28,24 @@
     <!-- For special use foreground service type (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- For sensors foreground service type (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SENSORS" />
+
     <queries>
+        <!-- Uber deep link query -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="uber" />
         </intent>
+        <!-- Pathao deep link query -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="pathao" />
+        </intent>
+        <!-- Uber mobile web fallback -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="m.uber.com" />
         </intent>
     </queries>
 
@@ -85,6 +95,24 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- Nearby Activity (Find Help) -->
+        <activity
+            android:name=".NearbyActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- Ride Booking Activity -->
+        <activity
+            android:name=".RideBookingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- Journey Timer Activity -->
+        <activity
+            android:name=".JourneyTimerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- Crash Detection Service (Foreground Service) -->
         <service
             android:name=".CrashDetectionService"
@@ -95,12 +123,6 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Crash detection and emergency alerts" />
         </service>
-
-        <activity
-            android:name=".NearbyActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
 
     </application>
 
