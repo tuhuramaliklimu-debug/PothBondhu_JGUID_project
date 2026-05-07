@@ -5,13 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -30,9 +25,6 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 class ProfileFragment : Fragment() {
 
     private lateinit var authRepository: AuthRepository
-    private lateinit var sensorManager: SensorManager
-    private var accelerometer: Sensor? = null
-    private var isCrashDetectionRunning = false
 
     private val crashReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -47,6 +39,8 @@ class ProfileFragment : Fragment() {
             }
         }
     }
+
+    // UI Elements
     private lateinit var avatarInitials: TextView
     private lateinit var profileName: TextView
     private lateinit var profileLocation: TextView
@@ -60,6 +54,7 @@ class ProfileFragment : Fragment() {
     private lateinit var phoneValue: TextView
     private lateinit var contactsContainer: LinearLayout
 
+    // Safety Settings UI Elements
     private lateinit var crashDetectionSwitch: SwitchMaterial
     private lateinit var locationSwitch: SwitchMaterial
     private lateinit var sensitivitySeekBar: SeekBar
@@ -80,8 +75,6 @@ class ProfileFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         authRepository = AuthRepository()
-        sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
         initializeViews(view)
         loadUserData()
@@ -89,6 +82,7 @@ class ProfileFragment : Fragment() {
         setupSafetySettingsListeners(view)
         setupSOSButton(view)
 
+        // Register broadcast receiver for crash alerts
         val filter = IntentFilter().apply {
             addAction("CRASH_DETECTED")
             addAction("CRASH_CANCELLED")
@@ -114,7 +108,6 @@ class ProfileFragment : Fragment() {
         phoneValue = view.findViewById(R.id.phoneValue)
         contactsContainer = view.findViewById(R.id.contactsContainer)
 
-        // Safety Settings
         crashDetectionSwitch = view.findViewById(R.id.crashDetectionSwitch)
         locationSwitch = view.findViewById(R.id.locationSwitch)
         sensitivitySeekBar = view.findViewById(R.id.sensitivitySeekBar)
@@ -126,31 +119,73 @@ class ProfileFragment : Fragment() {
 
     private fun loadUserData() {
         val userId = authRepository.getCurrentUserId()
-        if (userId != null) {
-            authRepository.getUserProfile(userId) { success, user ->
-                if (success && user != null) {
-                    profileName.text = user.userName.ifEmpty { "PothBondhu User" }
-                    emailValue.text = user.userEmail
-                    phoneValue.text = user.userPhone.ifEmpty { "Not set" }
-                    bloodGroupValue.text = user.bloodGroup.ifEmpty { "Not set" }
-                    allergiesValue.text = user.allergies.ifEmpty { "None" }
-                    medicationsValue.text = user.medications.ifEmpty { "None" }
-                    conditionsValue.text = user.conditions?.ifEmpty { "None" } ?: "None"
 
-                    // Set avatar initials
-                    val initials = user.userName.take(2).uppercase()
-                    avatarInitials.text = if (initials.length >= 2) initials else "PB"
-                }
+        if (userId == null) {
+            profileName.text = "Guest User"
+            profileLocation.text = "Not set"
+            emailValue.text = "Not logged in"
+            phoneValue.text = "Not set"
+            return
+        }
+
+        // Show loading state
+        profileName.text = "Loading..."
+        profileLocation.text = "Loading..."
+        emailValue.text = "Loading..."
+        phoneValue.text = "Loading..."
+
+        authRepository.getUserProfile(userId) { success, user ->
+            if (success && user != null) {
+                // Update profile name
+                profileName.text = user.userName.ifEmpty { "PothBondhu User" }
+
+                // Update location
+                profileLocation.text = user.location.ifEmpty { "Sylhet, Bangladesh" }
+
+                // Update medical info
+                bloodGroupValue.text = user.bloodGroup.ifEmpty { "Not set" }
+                allergiesValue.text = user.allergies.ifEmpty { "None" }
+                medicationsValue.text = user.medications.ifEmpty { "None" }
+                conditionsValue.text = user.conditions?.ifEmpty { "None" } ?: "None"
+
+                // Update account info
+                emailValue.text = user.userEmail.ifEmpty { authRepository.getUserEmail() ?: "Not set" }
+                phoneValue.text = user.userPhone.ifEmpty { "Not set" }
+
+                // Set avatar initials
+                val initials = user.userName.take(2).uppercase()
+                avatarInitials.text = if (initials.length >= 2) initials else "PB"
+
+                // Load emergency contacts
+                loadEmergencyContacts()
+
+                // Load alert count from Firestore (you can implement this)
+                loadAlertCount()
+
+            } else {
+                // Fallback to email if profile fetch fails
+                val email = authRepository.getUserEmail()
+                profileName.text = email?.split("@")?.firstOrNull() ?: "PothBondhu User"
+                profileLocation.text = "Sylhet, Bangladesh"
+                emailValue.text = email ?: "Not set"
+                phoneValue.text = "Not set"
+
+                Toast.makeText(context, "Could not load profile data", Toast.LENGTH_SHORT).show()
             }
         }
 
-        loadEmergencyContacts()
-        alertCount.text = "12"
+        // Load saved preferences for safety settings
         loadSafetySettings()
+    }
+
+    private fun loadAlertCount() {
+        // TODO: Implement alert count from Firestore
+        alertCount.text = "0"
     }
 
     private fun loadSafetySettings() {
         val prefs = requireContext().getSharedPreferences("app_prefs", AppCompatActivity.MODE_PRIVATE)
+
         val isCrashOn = prefs.getBoolean("crash_detection_enabled", true)
         crashDetectionSwitch.isChecked = isCrashOn
         crashStatusText.text = if (isCrashOn) "Enabled" else "Disabled"
@@ -201,6 +236,16 @@ class ProfileFragment : Fragment() {
                     }
                     contactsContainer.addView(noContactsText)
                 }
+            } else {
+                contactCount.text = "0"
+                val errorText = TextView(requireContext()).apply {
+                    text = "Failed to load contacts.\nCheck your internet connection."
+                    textSize = 12f
+                    setTextColor(resources.getColor(R.color.navy_light))
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(16, 24, 16, 24)
+                }
+                contactsContainer.addView(errorText)
             }
         }
     }
@@ -235,7 +280,7 @@ class ProfileFragment : Fragment() {
         }
 
         val nameText = TextView(requireContext()).apply {
-            text = "${contact.name} (${getRelationshipString(contact.name)})"
+            text = contact.name
             textSize = 14f
             setTextColor(resources.getColor(R.color.navy_dark))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -265,20 +310,10 @@ class ProfileFragment : Fragment() {
             setOnClickListener {
                 Toast.makeText(context, "Calling ${contact.name}...", Toast.LENGTH_SHORT).show()
             }
-
         }
 
         layout.addView(callBtn)
         return layout
-    }
-
-    private fun getRelationshipString(name: String): String {
-        return when {
-            name.contains("Fatima", ignoreCase = true) -> "Mom"
-            name.contains("Karim", ignoreCase = true) -> "Dad"
-            name.contains("Roni", ignoreCase = true) -> "Sister"
-            else -> "Contact"
-        }
     }
 
     private fun setupClickListeners() {
@@ -350,14 +385,12 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // Background Location Switch
         locationSwitch.setOnCheckedChangeListener { _, isChecked ->
             locationStatusText.text = if (isChecked) "Always On" else "Off"
             prefs.edit().putBoolean("background_location_enabled", isChecked).apply()
             Toast.makeText(context, "Background location ${if (isChecked) "enabled" else "disabled"}", Toast.LENGTH_SHORT).show()
         }
 
-        // Sensitivity SeekBar (0-60 scale)
         sensitivitySeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 sensitivityValue.text = "Threshold: $progress"
@@ -377,13 +410,11 @@ class ProfileFragment : Fragment() {
         } else {
             requireContext().startService(intent)
         }
-        isCrashDetectionRunning = true
     }
 
     private fun stopCrashDetectionService() {
         val intent = Intent(requireContext(), CrashDetectionService::class.java)
         requireContext().stopService(intent)
-        isCrashDetectionRunning = false
     }
 
     private fun showCrashAlertDialog(message: String) {
@@ -391,7 +422,6 @@ class ProfileFragment : Fragment() {
             .setTitle("⚠️ CRASH DETECTED")
             .setMessage("$message\n\nSOS will be sent in 5 seconds unless you cancel.")
             .setPositiveButton("Cancel SOS") { _, _ ->
-                // Cancel crash alert
                 val cancelIntent = Intent("CRASH_CANCELLED")
                 requireContext().sendBroadcast(cancelIntent)
                 Toast.makeText(context, "SOS cancelled", Toast.LENGTH_SHORT).show()
@@ -448,7 +478,7 @@ class ProfileFragment : Fragment() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_edit_text, null)
         val editText = dialogView.findViewById<EditText>(R.id.editText)
         editText.hint = "Full Name"
-        editText.setText(profileName.text)
+        editText.setText(profileName.text.toString())
 
         AlertDialog.Builder(requireContext())
             .setTitle("Edit Profile Name")
@@ -456,20 +486,11 @@ class ProfileFragment : Fragment() {
             .setPositiveButton("Save") { _, _ ->
                 val newName = editText.text.toString().trim()
                 if (newName.isNotBlank()) {
+                    profileName.text = newName
                     val userId = authRepository.getCurrentUserId()
                     if (userId != null) {
                         authRepository.saveUserProfile(userId, mapOf("userName" to newName)) { success, message ->
-                            if (success) {
-
-                                profileName.text = newName
-
-                                val initials = newName.take(2).uppercase()
-                                avatarInitials.text = if (initials.length >= 2) initials else "PB"
-
-                                Toast.makeText(context, "Name updated successfully", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Failed to update: $message", Toast.LENGTH_SHORT).show()
-                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -619,7 +640,6 @@ class ProfileFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Unregister receiver to prevent memory leaks
         try {
             requireContext().unregisterReceiver(crashReceiver)
         } catch (e: Exception) {
