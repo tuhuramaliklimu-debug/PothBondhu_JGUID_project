@@ -40,7 +40,7 @@
                         android:layout_centerHorizontal="true"
                         android:background="@drawable/avatar_large"
                         android:gravity="center"
-                        android:text="AN"
+                        android:text="PB"
                         android:textColor="@color/navy_primary"
                         android:textSize="28sp"
                         android:textStyle="bold" />
@@ -51,7 +51,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
-                    android:text="Anisa Tahsin Nisa"
+                    android:text="Loading..."
                     android:textColor="@color/beige_light"
                     android:textSize="20sp"
                     android:textStyle="bold" />
@@ -62,7 +62,7 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
                     android:layout_marginBottom="12dp"
-                    android:text="Dhaka, Bangladesh"
+                    android:text="Sylhet , Bangladesh"
                     android:textColor="@color/beige_light"
                     android:textSize="14sp" />
 
@@ -123,7 +123,7 @@
                             android:id="@+id/alertCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="12"
+                            android:text="0"
                             android:textColor="@color/beige_light"
                             android:textSize="24sp"
                             android:textStyle="bold" />
@@ -239,7 +239,7 @@
                             android:id="@+id/allergiesValue"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="None"
+                            android:text="Not set"
                             android:textSize="16sp"
                             android:textStyle="bold"
                             android:textColor="@color/navy_dark" />
@@ -400,7 +400,7 @@
             android:backgroundTint="@color/navy_primary"
             android:textColor="@color/beige_light" />
 
-        <!-- ===== SECTION 5: SAFETY SETTINGS (NEW) ===== -->
+        <!-- ===== SECTION 5: SAFETY SETTINGS ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -662,7 +662,7 @@
                         android:id="@+id/emailValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="anisa@example.com"
+                        android:text="Loading..."
                         android:textSize="14sp"
                         android:textColor="@color/navy_dark" />
                 </LinearLayout>
@@ -690,7 +690,7 @@
                         android:id="@+id/phoneValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="+880 1712 345 678"
+                        android:text="Loading..."
                         android:textSize="14sp"
                         android:textColor="@color/navy_dark" />
                 </LinearLayout>
