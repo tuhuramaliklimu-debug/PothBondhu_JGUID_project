@@ -42,4 +42,12 @@
     <string name="ride_desc">Pathao &amp; Uber</string>
 
     <string name="sos_button">SOS</string>
+
+    <string name="refresh">Refresh</string>
+    <string name="no_hotels_found">No hotels found nearby.</string>
+    <string name="dot_separator"> • </string>
+    <string name="amenities">Amenities:</string>
+    <string name="book_ride_btn">Book Ride</string>
+    <string name="directions">Directions</string>
+    <string name="call">Call</string>
 </resources>
