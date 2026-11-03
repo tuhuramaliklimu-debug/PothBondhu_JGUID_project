@@ -2,15 +2,28 @@ package com.jgd.pothbondhu.myapplication.app
 
 import android.content.Context
 import android.location.Location
+import android.util.Log
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Dns
+import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
-import org.json.JSONObject
-import java.net.URL
-import javax.net.ssl.HttpsURLConnection
+import java.io.File
+import java.io.IOException
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.util.concurrent.TimeUnit
+import kotlin.math.cos
 
 // Data class for API response
 data class OSMPlace(
@@ -26,14 +39,65 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
     private lateinit var myLocationOverlay: MyLocationNewOverlay
     private var lastKnownLocation: Location? = null
 
-    // Search radius in meters
-    private val SEARCH_RADIUS_METERS = 5000
+    companion object {
+        private const val TAG = "OSMHelper"
+        private const val USER_AGENT = "PothBondhu/1.0 (Emergency App Bangladesh)"
+
+        // Search radius in meters
+        private const val SEARCH_RADIUS_METERS = 5000
+
+        // Max number of places returned to the UI
+        private const val MAX_RESULTS = 25
+
+        // Hard limit for one whole request (connect + TLS + send + read).
+        // Short, so a blocked server fails fast and we move on to the next one.
+        private const val CALL_TIMEOUT_SEC = 12L
+
+        /** Overpass servers, tried in order. */
+        private val OVERPASS_MIRRORS = listOf(
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter",
+            "https://overpass-api.de/api/interpreter"
+        )
+
+        /**
+         * Last-resort fallback if every Overpass server is unreachable.
+         * Same organisation (OSMF) that serves the map tiles.
+         */
+        private const val NOMINATIM_HOST = "nominatim.openstreetmap.org"
+    }
+
+    /** OkHttp client that prefers IPv4 and gives up quickly. */
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .dns(object : Dns {
+                override fun lookup(hostname: String): List<InetAddress> {
+                    val all = Dns.SYSTEM.lookup(hostname)
+                    val v4 = all.filterIsInstance<Inet4Address>()
+                    return if (v4.isNotEmpty()) v4 else all
+                }
+            })
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .callTimeout(CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .build()
+    }
 
     init {
-        Configuration.getInstance().load(
-            context,
-            PreferenceManager.getDefaultSharedPreferences(context)
-        )
+        val config = Configuration.getInstance()
+
+        // Only load if it hasn't been initialized with a custom User-Agent
+        if (config.userAgentValue.isNullOrEmpty() || config.userAgentValue == "osmdroid") {
+            config.load(context, PreferenceManager.getDefaultSharedPreferences(context))
+            config.userAgentValue = context.packageName
+
+            // Set internal cache paths to avoid permission issues
+            val osmDir = File(context.cacheDir, "osmdroid")
+            val tilesDir = File(osmDir, "tiles")
+            if (!tilesDir.exists()) tilesDir.mkdirs()
+            config.osmdroidBasePath = osmDir
+            config.osmdroidTileCache = tilesDir
+        }
     }
 
     fun setupMap(centerLat: Double = 23.8103, centerLon: Double = 90.4125) {
@@ -52,7 +116,11 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
     }
 
     fun getLastKnownLocation(): Location? {
-        return myLocationOverlay.lastFix ?: lastKnownLocation
+        return if (::myLocationOverlay.isInitialized) {
+            myLocationOverlay.lastFix ?: lastKnownLocation
+        } else {
+            lastKnownLocation
+        }
     }
 
     fun addMarker(lat: Double, lon: Double, title: String, snippet: String? = null) {
@@ -83,67 +151,78 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
     }
 
     /**
-     * Searches for nearby places using the Overpass API (OSM's actual POI query engine).
+     * Searches for nearby places.
      *
-     * Why Overpass and not Nominatim?
-     * - Nominatim is a geocoder: it converts text addresses to coordinates.
-     * - Overpass is a spatial query engine: it finds OSM nodes/ways within a radius.
-     * - "hospital near 23.8,90.4" is not a valid Nominatim query — it parses it as
-     *   a place name search and returns nothing or wrong results.
+     * 1. Tries each Overpass mirror (best data, exact tags).
+     * 2. If all of them fail, falls back to Nominatim.
+     * 3. If that fails too, throws an IOException so the UI shows a real error.
+     *
+     * Results are sorted by distance, closest first.
      */
-    suspend fun searchNearby(latitude: Double, longitude: Double, category: String): List<OSMPlace> {
-        val overpassQuery = buildOverpassQuery(latitude, longitude, category)
-        val url = "https://overpass-api.de/api/interpreter"
+    suspend fun searchNearby(latitude: Double, longitude: Double, category: String): List<OSMPlace> =
+        withContext(Dispatchers.IO) {
+            val overpassQuery = buildOverpassQuery(latitude, longitude, category)
+            var lastError: Exception? = null
 
-        return try {
-            val responseBody = postOverpassQuery(url, overpassQuery)
-            parseOverpassResponse(responseBody, category)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
+            // ---- Step 1: Overpass mirrors ----
+            for (mirror in OVERPASS_MIRRORS) {
+                try {
+                    Log.d(TAG, "Trying Overpass mirror: $mirror")
+                    val body = postOverpassQuery(mirror, overpassQuery)
+                    val places = parseOverpassResponse(body, category)
+                    Log.d(TAG, "Overpass $mirror returned ${places.size} places")
+                    return@withContext places
+                        .sortedBy { distanceMeters(latitude, longitude, it) }
+                        .take(MAX_RESULTS)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Overpass failed: $mirror -> ${e.javaClass.simpleName}: ${e.message}")
+                    lastError = e
+                }
+            }
+
+            // ---- Step 2: Nominatim fallback ----
+            try {
+                Log.d(TAG, "Trying Nominatim fallback")
+                val places = searchViaNominatim(latitude, longitude, category)
+                Log.d(TAG, "Nominatim returned ${places.size} places")
+                return@withContext places
+                    .sortedBy { distanceMeters(latitude, longitude, it) }
+                    .take(MAX_RESULTS)
+            } catch (e: Exception) {
+                Log.w(TAG, "Nominatim failed -> ${e.javaClass.simpleName}: ${e.message}")
+                lastError = e
+            }
+
+            throw IOException(
+                "Could not reach the map servers. Your network may be blocking them. " +
+                        "Try a VPN or a different Wi-Fi.",
+                lastError
+            )
         }
+
+    private fun distanceMeters(fromLat: Double, fromLon: Double, place: OSMPlace): Float {
+        val out = FloatArray(1)
+        Location.distanceBetween(fromLat, fromLon, place.lat.toDouble(), place.lon.toDouble(), out)
+        return out[0]
     }
 
-    /**
-     * Builds an Overpass QL query for the given category.
-     *
-     * The query pattern:
-     *   [out:json][timeout:25];
-     *   (
-     *     node["amenity"="hospital"](around:5000,23.8103,90.4125);
-     *     way["amenity"="hospital"](around:5000,23.8103,90.4125);
-     *   );
-     *   out center 20;
-     *
-     * - `around:RADIUS,LAT,LON` — finds all OSM elements within RADIUS meters of the point
-     * - `out center` — for ways (polygons like hospital buildings), returns the center point
-     * - We query both `node` and `way` because some places are mapped as points, others as building outlines
-     */
+    // ------------------------------------------------------------------
+    // Overpass
+    // ------------------------------------------------------------------
+
     private fun buildOverpassQuery(lat: Double, lon: Double, category: String): String {
         val tags = getCategoryTags(category)
         val radius = SEARCH_RADIUS_METERS
 
         val tagFilters = tags.joinToString("\n") { (key, value) ->
-            """
-            node["$key"="$value"](around:$radius,$lat,$lon);
-            way["$key"="$value"](around:$radius,$lat,$lon);
-            """.trimIndent()
+            "node[\"$key\"=\"$value\"](around:$radius,$lat,$lon);\n" +
+                    "way[\"$key\"=\"$value\"](around:$radius,$lat,$lon);"
         }
 
-        return """
-            [out:json][timeout:25];
-            (
-            $tagFilters
-            );
-            out center 20;
-        """.trimIndent()
+        return "[out:json][timeout:25];\n(\n$tagFilters\n);\nout center 60;"
     }
 
-    /**
-     * Maps app categories to OSM tag key-value pairs.
-     * These are the official OSM tags used by mappers worldwide.
-     * Reference: https://wiki.openstreetmap.org/wiki/Map_features
-     */
+    /** Maps app categories to OSM tag key-value pairs. */
     private fun getCategoryTags(category: String): List<Pair<String, String>> {
         return when (category) {
             "hospital" -> listOf(
@@ -151,12 +230,8 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
                 "amenity" to "clinic",
                 "amenity" to "doctors"
             )
-            "police" -> listOf(
-                "amenity" to "police"
-            )
-            "fuel" -> listOf(
-                "amenity" to "fuel"
-            )
+            "police" -> listOf("amenity" to "police")
+            "fuel" -> listOf("amenity" to "fuel")
             "mechanic" -> listOf(
                 "shop" to "car_repair",
                 "shop" to "motorcycle_repair"
@@ -164,55 +239,34 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
             "blood_bank" -> listOf(
                 "amenity" to "blood_bank",
                 "amenity" to "blood_donation",
-                "healthcare" to "blood_bank",     // A more modern healthcare-specific tag
-                "healthcare" to "clinic",         // Some donation centers are tagged as clinics
+                "healthcare" to "blood_bank",
+                "healthcare" to "clinic",
                 "amenity" to "hospital"
             )
             else -> listOf("amenity" to category)
         }
     }
 
-    /**
-     * Makes the HTTP POST request to Overpass API.
-     * Overpass requires POST with the query in the request body prefixed by "data=".
-     * We also set a User-Agent — required by Nominatim, good practice for Overpass.
-     */
     private fun postOverpassQuery(urlString: String, query: String): String {
-        val url = URL(urlString)
-        val connection = url.openConnection() as HttpsURLConnection
+        val body = FormBody.Builder().add("data", query).build()
+        val request = Request.Builder()
+            .url(urlString)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "application/json")
+            .post(body)
+            .build()
 
-        connection.apply {
-            requestMethod = "POST"
-            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            setRequestProperty("User-Agent", "PothBondhu/1.0 (Emergency App Bangladesh)")
-            connectTimeout = 15000
-            readTimeout = 25000
-            doOutput = true
+        client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code} from $urlString")
+            return resp.body?.string() ?: throw IOException("Empty response from $urlString")
         }
-
-        val postData = "data=${java.net.URLEncoder.encode(query, "UTF-8")}"
-        connection.outputStream.use { it.write(postData.toByteArray(Charsets.UTF_8)) }
-
-        return connection.inputStream.bufferedReader().use { it.readText() }
     }
 
-    /**
-     * Parses the Overpass JSON response into OSMPlace objects.
-     *
-     * Overpass response structure:
-     * {
-     *   "elements": [
-     *     { "type": "node", "id": 123, "lat": 23.8, "lon": 90.4, "tags": { "name": "..." } },
-     *     { "type": "way",  "id": 456, "center": { "lat": 23.9, "lon": 90.5 }, "tags": { ... } }
-     *   ]
-     * }
-     *
-     * For ways, we use the "center" field (computed by Overpass) instead of lat/lon directly.
-     */
     private fun parseOverpassResponse(responseBody: String, category: String): List<OSMPlace> {
         val results = mutableListOf<OSMPlace>()
         val json = JSONObject(responseBody)
         val elements = json.getJSONArray("elements")
+        val seenIds = HashSet<Long>()
 
         for (i in 0 until elements.length()) {
             val element = elements.getJSONObject(i)
@@ -227,7 +281,6 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
                     lon = element.getDouble("lon")
                 }
                 "way" -> {
-                    // Ways have a "center" object when queried with "out center"
                     val center = element.optJSONObject("center") ?: continue
                     lat = center.getDouble("lat")
                     lon = center.getDouble("lon")
@@ -236,15 +289,15 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
             }
 
             val id = element.getLong("id")
+            if (!seenIds.add(id)) continue // skip duplicates
+
             val tags = element.optJSONObject("tags")
 
-            // Build a display name from OSM tags, falling back gracefully
-            val name = tags?.optString("name")
-                ?: tags?.optString("operator")
-                ?: tags?.optString("brand")
-                ?: "Unnamed ${category.replaceFirstChar { it.uppercaseChar() }}"
+            val name = tags?.optString("name")?.takeIf { it.isNotBlank() }
+                ?: tags?.optString("operator")?.takeIf { it.isNotBlank() }
+                ?: tags?.optString("brand")?.takeIf { it.isNotBlank() }
+                ?: "Unnamed ${category.replace('_', ' ').replaceFirstChar { it.uppercaseChar() }}"
 
-            // Build a readable address from available address tags
             val addressParts = mutableListOf<String>()
             tags?.let {
                 it.optString("addr:housenumber").takeIf { s -> s.isNotEmpty() }?.let { v -> addressParts.add(v) }
@@ -258,17 +311,108 @@ class OSMHelper(private val context: Context, private val mapView: MapView) {
                 name
             }
 
+            val placeType = tags?.optString("amenity")?.takeIf { it.isNotBlank() }
+                ?: tags?.optString("shop")?.takeIf { it.isNotBlank() }
+                ?: category
+
             results.add(
                 OSMPlace(
                     place_id = id,
                     lat = lat.toString(),
                     lon = lon.toString(),
                     display_name = displayName,
-                    type = tags?.optString("amenity") ?: tags?.optString("shop") ?: category
+                    type = placeType
                 )
             )
         }
 
+        return results
+    }
+
+    // ------------------------------------------------------------------
+    // Nominatim fallback
+    // ------------------------------------------------------------------
+
+    /** Search words sent to Nominatim for each app category. */
+    private fun getNominatimTerms(category: String): List<String> {
+        return when (category) {
+            "hospital" -> listOf("hospital", "clinic")
+            "police" -> listOf("police")
+            "fuel" -> listOf("fuel station")
+            "mechanic" -> listOf("car repair", "garage")
+            "blood_bank" -> listOf("blood bank", "hospital")
+            else -> listOf(category.replace('_', ' '))
+        }
+    }
+
+    /**
+     * Searches inside a box around the point (about SEARCH_RADIUS_METERS in each direction).
+     * Nominatim's policy allows 1 request per second, so requests are spaced out.
+     */
+    private fun searchViaNominatim(lat: Double, lon: Double, category: String): List<OSMPlace> {
+        val dLat = SEARCH_RADIUS_METERS / 111_320.0
+        val dLon = dLat / cos(Math.toRadians(lat))
+        // viewbox = left,top,right,bottom  (lon_min, lat_max, lon_max, lat_min)
+        val viewbox = "${lon - dLon},${lat + dLat},${lon + dLon},${lat - dLat}"
+
+        val results = mutableListOf<OSMPlace>()
+        val seenIds = HashSet<Long>()
+        var anySuccess = false
+        var lastError: Exception? = null
+
+        for ((index, term) in getNominatimTerms(category).withIndex()) {
+            if (index > 0) Thread.sleep(1100)
+
+            try {
+                val url = HttpUrl.Builder()
+                    .scheme("https")
+                    .host(NOMINATIM_HOST)
+                    .addPathSegment("search")
+                    .addQueryParameter("q", term)
+                    .addQueryParameter("format", "jsonv2")
+                    .addQueryParameter("viewbox", viewbox)
+                    .addQueryParameter("bounded", "1")
+                    .addQueryParameter("limit", "20")
+                    .build()
+
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "application/json")
+                    .get()
+                    .build()
+
+                client.newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code} from Nominatim")
+                    val text = resp.body?.string() ?: throw IOException("Empty response from Nominatim")
+                    val array = JSONArray(text)
+                    anySuccess = true
+
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        val id = item.optLong("place_id")
+                        if (!seenIds.add(id)) continue
+
+                        results.add(
+                            OSMPlace(
+                                place_id = id,
+                                lat = item.getString("lat"),
+                                lon = item.getString("lon"),
+                                display_name = item.optString("display_name").ifBlank {
+                                    item.optString("name", "Unnamed")
+                                },
+                                type = item.optString("type", category)
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Nominatim term '$term' failed: ${e.javaClass.simpleName}: ${e.message}")
+                lastError = e
+            }
+        }
+
+        if (!anySuccess) throw lastError ?: IOException("Nominatim unreachable")
         return results
     }
 }

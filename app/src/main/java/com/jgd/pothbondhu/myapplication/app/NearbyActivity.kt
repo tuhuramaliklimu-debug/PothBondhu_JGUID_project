@@ -1,6 +1,8 @@
 package com.jgd.pothbondhu.myapplication.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
@@ -12,9 +14,13 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.cardview.widget.CardView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
@@ -23,9 +29,18 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import java.io.File
 import java.text.DecimalFormat
 
 class NearbyActivity : AppCompatActivity() {
+
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST = 1001
+        private val DEFAULT_CENTER = GeoPoint(23.8103, 90.4125) // Dhaka
+
+        // If no GPS fix arrives in this time, search around the map center instead
+        private const val FIRST_SEARCH_FALLBACK_MS = 4000L
+    }
 
     private lateinit var mapView: MapView
     private lateinit var myLocationOverlay: MyLocationNewOverlay
@@ -41,25 +56,60 @@ class NearbyActivity : AppCompatActivity() {
     private lateinit var btnCall: Button
 
     private var currentLocation: Location? = null
-    private var currentMarkers = mutableListOf<Marker>()
+    private val currentMarkers = mutableListOf<Marker>()
     private var selectedPlace: OSMPlace? = null
-    private var selectedCategory: String = ""
+    private var selectedCategory: String = "hospital"
+    private var firstSearchStarted = false
+
+    // Scope tied to this screen; cancelled in onDestroy so no work leaks
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val osmHelper by lazy { OSMHelper(this, mapView) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // MUST be before setContentView: MapView reads this config during XML inflation
+        initOsmDroid()
+
         super.onCreate(savedInstanceState)
-
-        // Initialize OSM configuration
-        Configuration.getInstance().load(
-            applicationContext,
-            androidx.preference.PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        )
-        Configuration.getInstance().setUserAgentValue("PothBondhu/1.0")
-
         setContentView(R.layout.activity_nearby)
+
+        // Category passed from MainActivity (e.g. the Blood Bank card)
+        selectedCategory = intent.getStringExtra("selected_category") ?: "hospital"
 
         setupViews()
         setupMap()
         setupClickListeners()
+        checkLocationPermission()
+
+        // If GPS never gives a fix (emulator without location, permission denied),
+        // still run a search so the screen is not empty.
+        mapView.postDelayed({
+            if (!isFinishing && !firstSearchStarted) {
+                firstSearchStarted = true
+                searchNearbyPlaces(selectedCategory)
+            }
+        }, FIRST_SEARCH_FALLBACK_MS)
+    }
+
+    private fun initOsmDroid() {
+        val config = Configuration.getInstance()
+
+        // 1. Load configuration from preferences FIRST
+        config.load(
+            applicationContext,
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        )
+
+        // 2. Set User-Agent (OSM servers block empty/default UAs)
+        config.userAgentValue = packageName
+
+        // 3. Set explicit internal cache paths to avoid permission issues
+        val osmDir = File(applicationContext.cacheDir, "osmdroid")
+        val tilesDir = File(osmDir, "tiles")
+        if (!tilesDir.exists()) tilesDir.mkdirs()
+
+        config.osmdroidBasePath = osmDir
+        config.osmdroidTileCache = tilesDir
     }
 
     private fun setupViews() {
@@ -85,129 +135,150 @@ class NearbyActivity : AppCompatActivity() {
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
         mapView.setBuiltInZoomControls(true)
-        mapView.controller.setZoom(15.0)
+        mapView.setTilesScaledToDpi(true) // Better rendering on high-res screens
+        mapView.controller.setZoom(13.0)
+        mapView.controller.setCenter(DEFAULT_CENTER)
+        mapView.invalidate()
+    }
 
-        // Center on Dhaka as default
-        mapView.controller.setCenter(GeoPoint(23.8103, 90.4125))
+    private fun checkLocationPermission() {
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
 
-        // My location overlay
+        if (granted) {
+            startLocationTracking()
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+                startLocationTracking()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Location permission denied. Showing Dhaka. Tap a category to search.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun startLocationTracking() {
         myLocationOverlay = MyLocationNewOverlay(mapView)
         myLocationOverlay.enableMyLocation()
         myLocationOverlay.enableFollowLocation()
         mapView.overlays.add(myLocationOverlay)
+        mapView.invalidate()
 
-        // Get location when available
         myLocationOverlay.runOnFirstFix {
-            currentLocation = myLocationOverlay.lastFix
+            val fix = myLocationOverlay.lastFix ?: return@runOnFirstFix
+            currentLocation = fix
             runOnUiThread {
-                currentLocation?.let {
-                    mapView.controller.setCenter(GeoPoint(it.latitude, it.longitude))
-                    // Show location info
-                    Toast.makeText(
-                        this@NearbyActivity,
-                        "📍 Location found: ${it.latitude}, ${it.longitude}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    // Auto-search for passed category or hospital by default
-                    selectedCategory = intent.getStringExtra("selected_category") ?: "hospital"
-                    searchNearbyPlaces(selectedCategory)
-                }
+                if (isFinishing) return@runOnUiThread
+                myLocationOverlay.disableFollowLocation()
+                mapView.controller.animateTo(GeoPoint(fix.latitude, fix.longitude))
+                mapView.controller.setZoom(14.0)
+                firstSearchStarted = true
+                searchNearbyPlaces(selectedCategory)
             }
         }
-
-        mapView.invalidate()
     }
 
+    private fun lastOverlayFix(): Location? =
+        if (::myLocationOverlay.isInitialized) myLocationOverlay.lastFix else null
+
     private fun setupClickListeners() {
-        findViewById<Button>(R.id.btnHospitals).setOnClickListener {
-            selectedCategory = "hospital"
-            searchNearbyPlaces("hospital")
-        }
-        findViewById<Button>(R.id.btnPolice).setOnClickListener {
-            selectedCategory = "police"
-            searchNearbyPlaces("police")
-        }
-        findViewById<Button>(R.id.btnFuel).setOnClickListener {
-            selectedCategory = "fuel"
-            searchNearbyPlaces("fuel")
-        }
-        findViewById<Button>(R.id.btnMechanic).setOnClickListener {
-            selectedCategory = "mechanic"
-            searchNearbyPlaces("mechanic")
-        }
-        findViewById<Button>(R.id.btnBloodBank).setOnClickListener {
-            selectedCategory = "blood_bank"
-            searchNearbyPlaces("blood_bank")
+        mapOf(
+            R.id.btnHospitals to "hospital",
+            R.id.btnPolice to "police",
+            R.id.btnFuel to "fuel",
+            R.id.btnMechanic to "mechanic",
+            R.id.btnBloodBank to "blood_bank"
+        ).forEach { (id, category) ->
+            findViewById<Button>(id).setOnClickListener {
+                selectedCategory = category
+                firstSearchStarted = true
+                searchNearbyPlaces(category)
+            }
         }
 
         findViewById<FloatingActionButton>(R.id.myLocationFab).setOnClickListener {
-            currentLocation?.let {
-                mapView.controller.setCenter(GeoPoint(it.latitude, it.longitude))
+            val loc = currentLocation ?: lastOverlayFix()
+            if (loc != null) {
+                currentLocation = loc
+                mapView.controller.animateTo(GeoPoint(loc.latitude, loc.longitude))
                 mapView.controller.setZoom(15.0)
-                Toast.makeText(this, "📍 Centered on your location", Toast.LENGTH_SHORT).show()
-            } ?: Toast.makeText(this, "Waiting for location... Set mock location in emulator", Toast.LENGTH_LONG).show()
-        }
-
-        btnDirections.setOnClickListener {
-            selectedPlace?.let { startDirections(it) }
-        }
-
-        btnBookRide.setOnClickListener {
-            selectedPlace?.let { bookRide(it) }
-        }
-
-        btnCall.setOnClickListener {
-            selectedPlace?.let {
-                showContactOptions(it)
+            } else {
+                Toast.makeText(
+                    this,
+                    "Waiting for GPS...\nIn emulator: Extended Controls → Location → Set coordinates",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
+
+        btnDirections.setOnClickListener { selectedPlace?.let { startDirections(it) } }
+        btnBookRide.setOnClickListener { selectedPlace?.let { bookRide(it) } }
+        btnCall.setOnClickListener { selectedPlace?.let { showContactOptions(it) } }
     }
 
     private fun searchNearbyPlaces(category: String) {
         val location = currentLocation
-        if (location == null) {
-            Toast.makeText(this, "📍 No location found! Please set mock location in emulator:\n\n1. Click ⋯ on emulator\n2. Go to Location tab\n3. Set coordinates (e.g., 23.8103, 90.4125 for Dhaka)\n4. Click 'Set Location'", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        // Show what location we're searching from
-        Toast.makeText(
-            this,
-            "🔍 Searching for $category near:\nLat: ${location.latitude}\nLon: ${location.longitude}",
-            Toast.LENGTH_LONG
-        ).show()
+            ?: lastOverlayFix()
+            ?: Location("default").apply {
+                latitude = mapView.mapCenter.latitude
+                longitude = mapView.mapCenter.longitude
+            }
+        currentLocation = location
 
         progressBar.visibility = View.VISIBLE
         bottomSheet.visibility = View.GONE
 
-        CoroutineScope(Dispatchers.IO).launch {
+        scope.launch {
             try {
-                val osmHelper = OSMHelper(this@NearbyActivity, mapView)
                 val places = osmHelper.searchNearby(location.latitude, location.longitude, category)
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
                     clearMarkers()
-
-                    val categoryNames = mapOf(
+                    val label = mapOf(
                         "hospital" to "Hospitals",
                         "police" to "Police Stations",
                         "fuel" to "Fuel Stations",
                         "mechanic" to "Mechanics",
                         "blood_bank" to "Blood Banks"
-                    )
+                    )[category] ?: category
 
                     if (places.isNotEmpty()) {
                         addMarkersToMap(places, category)
                         Toast.makeText(
                             this@NearbyActivity,
-                            "✅ Found ${places.size} ${categoryNames[category]} near you! Tap on markers to see details.",
-                            Toast.LENGTH_LONG
+                            "✅ Found ${places.size} $label. Tap a pin for details.",
+                            Toast.LENGTH_SHORT
                         ).show()
                     } else {
                         Toast.makeText(
                             this@NearbyActivity,
-                            "⚠️ No ${categoryNames[category]} found nearby.\n\nTry:\n• Zooming out the map\n• Using a different location\n• Checking internet connection",
+                            "⚠️ No $label found within 5 km.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -217,68 +288,49 @@ class NearbyActivity : AppCompatActivity() {
                     progressBar.visibility = View.GONE
                     Toast.makeText(
                         this@NearbyActivity,
-                        "❌ Error: ${e.message}\n\nCheck your internet connection.",
+                        "❌ ${e.message ?: "Search failed"}",
                         Toast.LENGTH_LONG
                     ).show()
-                    e.printStackTrace()
                 }
             }
         }
     }
 
     private fun addMarkersToMap(places: List<OSMPlace>, category: String) {
+        val emoji = mapOf(
+            "hospital" to "🏥", "police" to "🚓",
+            "fuel" to "⛽", "mechanic" to "🔧", "blood_bank" to "🩸"
+        )
         for (place in places) {
             val marker = Marker(mapView)
             marker.position = GeoPoint(place.lat.toDouble(), place.lon.toDouble())
-
-            // Set custom title based on category
-            marker.title = when (category) {
-                "police" -> "🚓 ${getShortName(place.display_name)}"
-                "hospital" -> "🏥 ${getShortName(place.display_name)}"
-                "fuel" -> "⛽ ${getShortName(place.display_name)}"
-                "blood_bank" -> "🩸 ${getShortName(place.display_name)}"
-                else -> getShortName(place.display_name)
-            }
-
+            marker.title = "${emoji[category] ?: "📍"} ${getShortName(place.display_name)}"
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            marker.setOnMarkerClickListener { _, _ ->
-                showPlaceDetails(place, category)
-                true
-            }
+            marker.setOnMarkerClickListener { _, _ -> showPlaceDetails(place, category); true }
             mapView.overlays.add(marker)
             currentMarkers.add(marker)
         }
         mapView.invalidate()
     }
 
-    private fun getShortName(fullName: String): String {
-        return fullName.split(",").firstOrNull()?.trim() ?: fullName
-    }
+    private fun getShortName(name: String) = name.split(",").firstOrNull()?.trim() ?: name
 
     private fun showPlaceDetails(place: OSMPlace, category: String) {
         selectedPlace = place
         selectedCategory = category
-
-        // Set place name
         placeName.text = getShortName(place.display_name)
         placeAddress.text = place.display_name
 
-        // Calculate and show distance
         currentLocation?.let { loc ->
-            val placeLoc = Location("place").apply {
+            val dest = Location("p").apply {
                 latitude = place.lat.toDouble()
                 longitude = place.lon.toDouble()
             }
-            val distance = loc.distanceTo(placeLoc)
-            val formattedDistance = if (distance < 1000) {
-                "${distance.toInt()} meters away"
-            } else {
-                "${DecimalFormat("#.#").format(distance / 1000)} km away"
-            }
-            placeDistance.text = "📍 $formattedDistance"
+            val d = loc.distanceTo(dest)
+            placeDistance.text = if (d < 1000) "📍 ${d.toInt()} m away"
+            else "📍 ${DecimalFormat("#.#").format(d / 1000)} km away"
         }
 
-        // Set category-specific information
         when (category) {
             "police" -> {
                 placePhone.text = "📞 Emergency: 999"
@@ -290,7 +342,7 @@ class NearbyActivity : AppCompatActivity() {
             }
             "hospital" -> {
                 placePhone.text = "📞 Emergency: 999"
-                placeEmergency.text = "🏥 Ambulance Service Available"
+                placeEmergency.text = "🏥 Ambulance Available"
                 btnCall.text = "📞 Call Hospital"
                 placePhone.visibility = View.VISIBLE
                 placeEmergency.visibility = View.VISIBLE
@@ -320,69 +372,48 @@ class NearbyActivity : AppCompatActivity() {
         }
 
         bottomSheet.visibility = View.VISIBLE
-        mapView.controller.setCenter(GeoPoint(place.lat.toDouble(), place.lon.toDouble()))
+        mapView.controller.animateTo(GeoPoint(place.lat.toDouble(), place.lon.toDouble()))
         mapView.controller.setZoom(16.0)
     }
 
     private fun showContactOptions(place: OSMPlace) {
-        when (selectedCategory) {
-            "police" -> {
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("Contact Police")
-                    .setMessage("Emergency Number: 999\n\nWhat would you like to do?")
-                    .setPositiveButton("Call 999") { _, _ ->
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:999"))
-                        startActivity(intent)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            "hospital" -> {
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("Contact Hospital")
-                    .setMessage("Emergency Number: 999\n\nWould you like to call emergency services?")
-                    .setPositiveButton("Call 999") { _, _ ->
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:999"))
-                        startActivity(intent)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            else -> {
-                Toast.makeText(this, "Navigate to this location for more info", Toast.LENGTH_SHORT).show()
-            }
+        if (selectedCategory == "police" || selectedCategory == "hospital") {
+            val label = if (selectedCategory == "police") "Police" else "Hospital"
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Contact $label")
+                .setMessage("Emergency Number: 999")
+                .setPositiveButton("Call 999") { _, _ ->
+                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:999")))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            selectedPlace?.let { startDirections(it) }
         }
     }
 
     private fun startDirections(place: OSMPlace) {
-        val startLat = currentLocation?.latitude ?: return
-        val startLon = currentLocation?.longitude ?: return
-        val destLat = place.lat.toDouble()
-        val destLon = place.lon.toDouble()
-
-        val uri = Uri.parse("https://www.google.com/maps/dir/$startLat,$startLon/$destLat,$destLon")
+        val lat = currentLocation?.latitude ?: mapView.mapCenter.latitude
+        val lon = currentLocation?.longitude ?: mapView.mapCenter.longitude
+        val uri = Uri.parse("https://www.google.com/maps/dir/$lat,$lon/${place.lat},${place.lon}")
         startActivity(Intent(Intent.ACTION_VIEW, uri))
     }
 
     private fun bookRide(place: OSMPlace) {
-        val destLat = place.lat.toDouble()
-        val destLon = place.lon.toDouble()
-        val destName = getShortName(place.display_name)
-
-        val uberUri = Uri.parse("uber://?action=setPickup&pickup=my_location&dropoff[latitude]=$destLat&dropoff[longitude]=$destLon&dropoff[nickname]=${Uri.encode(destName)}")
-        val uberIntent = Intent(Intent.ACTION_VIEW, uberUri)
-
-        if (uberIntent.resolveActivity(packageManager) != null) {
-            startActivity(uberIntent)
-        } else {
-            Toast.makeText(this, "Please install Uber", Toast.LENGTH_SHORT).show()
-        }
+        val name = getShortName(place.display_name)
+        val uri = Uri.parse(
+            "uber://?action=setPickup&pickup=my_location" +
+                    "&dropoff[latitude]=${place.lat}" +
+                    "&dropoff[longitude]=${place.lon}" +
+                    "&dropoff[nickname]=${Uri.encode(name)}"
+        )
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+        else Toast.makeText(this, "Please install Uber", Toast.LENGTH_SHORT).show()
     }
 
     private fun clearMarkers() {
-        for (marker in currentMarkers) {
-            mapView.overlays.remove(marker)
-        }
+        currentMarkers.forEach { mapView.overlays.remove(it) }
         currentMarkers.clear()
         mapView.invalidate()
     }
@@ -395,6 +426,12 @@ class NearbyActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         mapView.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
+        mapView.onDetach()
     }
 
     override fun onSupportNavigateUp(): Boolean {
